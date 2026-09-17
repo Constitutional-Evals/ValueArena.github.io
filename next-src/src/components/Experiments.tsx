@@ -312,7 +312,7 @@ export function Experiments() {
                     cur={sortCol}
                     asc={sortAsc}
                     onSort={onSort}
-                    width={colWidths[c.key]}
+                    width={colWidths[c.key] ?? (c.key === 'name' ? 420 : undefined)}
                     setWidth={setColWidth}
                   />
                 ))}
