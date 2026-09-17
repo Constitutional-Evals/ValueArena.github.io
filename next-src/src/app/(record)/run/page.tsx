@@ -1,5 +1,7 @@
 'use client';
 
+import { runSlug } from '@/lib/run-slug';
+
 import { useEffect, useMemo, useState } from 'react';
 import { GIT_REPO } from '@/lib/config';
 import { fetchIndex, fetchMeta, fetchSummary, hfImageURL } from '@/lib/hf';
@@ -23,10 +25,7 @@ export default function RunPage() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const params = new URLSearchParams(window.location.search);
-      // Legacy site accepts both ?run= and ?slug=. Take whichever exists.
-      const raw = (params.get('slug') || params.get('run') || '').replace(/ /g, '+');
-      const slug = raw && /^[a-zA-Z0-9\-_./+]+$/.test(raw) ? raw : '';
+      const slug = runSlug(window.location.search, 'slug');
       if (!slug) {
         if (!cancelled) setState({ status: 'error', message: 'Invalid or missing run.' });
         return;
