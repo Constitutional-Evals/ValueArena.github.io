@@ -1290,6 +1290,12 @@ code {
   max-width: 240px;
   transition: background 0.08s;
 }
+/* Keep full run and group names readable, including narrow resized columns. */
+.runs-table td:first-child {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+}
 .runs-table tbody tr:last-child td { border-bottom: none; }
 .runs-table tbody tr:hover td { background: var(--bg-hover); }
 
