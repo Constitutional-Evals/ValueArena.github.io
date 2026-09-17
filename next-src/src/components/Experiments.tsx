@@ -347,7 +347,7 @@ export function Experiments() {
                         <span className="group-name">{item.name}</span>
                         <span className="group-count">{item.children.length} runs</span>
                       </td>
-                      <td className="note-cell">{first.note}</td>
+                      <td className="note-cell" title={first.note || undefined}>{first.note}</td>
                       <td>
                         {uniqConst.length === 1 ? (
                           uniqConst[0]
@@ -475,7 +475,7 @@ function RunRowEl({ r, child }: { r: RunRow; child: boolean }) {
           {displayName}
         </a>
       </td>
-      <td className="note-cell">{r.note || ''}</td>
+      <td className="note-cell" title={r.note || undefined}>{r.note || ''}</td>
       <td>
         {r.constitution ? (
           <a className="link-subtle" href={`/constitution/?id=${encodeURIComponent(r.constitution)}`}>

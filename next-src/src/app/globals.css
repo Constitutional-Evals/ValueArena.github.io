@@ -1290,6 +1290,12 @@ code {
   max-width: 240px;
   transition: background 0.08s;
 }
+/* Keep full run and group names readable, including narrow resized columns. */
+.runs-table td:first-child {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+}
 .runs-table tbody tr:last-child td { border-bottom: none; }
 .runs-table tbody tr:hover td { background: var(--bg-hover); }
 
@@ -2505,3 +2511,16 @@ code {
   .tx-detail { padding: 12px 12px 16px; }
   .tx-cell { width: 8px; }
 }
+
+
+.collection-coverage-warning { border-color: var(--accent); }
+.coverage-headline { margin: 0.6rem 0; }
+.coverage-warning-text { color: var(--accent); }
+.coverage-actions { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 1rem; }
+.coverage-details { margin-top: 1rem; }
+.coverage-details summary { cursor: pointer; overflow-wrap: anywhere; }
+.coverage-details label { display: inline-flex; gap: 0.5rem; align-items: center; margin-top: 1rem; }
+.coverage-details select { color: var(--text); background: var(--bg-surface); border: 1px solid var(--border); padding: 0.4rem; max-width: 100%; }
+.coverage-table-wrap { overflow-x: auto; }
+.coverage-reason { white-space: pre-wrap; overflow-wrap: anywhere; min-width: 15rem; max-width: 32rem; }
+.coverage-scenario { white-space: pre-wrap; min-width: 15rem; max-width: 32rem; }

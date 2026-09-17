@@ -9,6 +9,7 @@ import { EloBarChart } from '@/components/EloBarChart';
 import { ModelLogo } from '@/components/ModelLogo';
 import { TrustChart } from '@/components/TrustChart';
 import { Penguin } from '@/components/Penguin';
+import { CollectionCoverage } from '@/components/CollectionCoverage';
 
 type State =
   | { status: 'loading' }
@@ -113,6 +114,8 @@ export default function RunPage() {
           </div>
         </div>
       </div>
+
+      <CollectionCoverage meta={meta} slug={slug} />
 
       <div className="card">
         <h2>Elo</h2>

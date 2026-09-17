@@ -64,3 +64,27 @@ runs/{name}/
 ```
 
 New metadata records `evaluation_mode` as either `pairwise_btd` or `direct_rating`. Missing values on legacy runs are interpreted as `pairwise_btd`. Direct runs may use exhaustive or `partitioned_random_judge` sampling; their run pages report group size, response redundancy, seed, and observed edge coverage. Direct runs omit BTD loss and UV-embedding artifacts.
+
+## Omitted samples
+
+Run and transcript pages show collection coverage before the results. A run
+with `meta.inspect.collection_report_file` loads that JSON alongside the Inspect
+log and lists omitted judgment samples by scenario, judge, model, and error.
+The table can be filtered by judge; long lists load in batches of 40 rows.
+
+EigenBench's updated uploader generates `collection_report.json` by comparing
+Inspect judgment keys with `evaluations.jsonl`, and adds the metadata reference.
+Re-upload an existing run with that uploader to publish its individual omissions.
+The report covers judgment samples present in the named log, not unstarted
+samples, retries in other logs, or phases not represented there. Duplicate keys
+(such as repeated epochs) are ambiguous and do not produce a verified report.
+
+Without a report, the UI first uses an explicit `missing_direct_judgments`
+count, then a labeled direct-rating estimate from dataset count, panel size,
+sampler and published judgment count. Unsupported or extended plans remain
+unknown. Aggregate edge coverage is never treated as sample completion, and
+matching row totals are not presented as proof of zero failures. Partial status
+and report download errors remain visible.
+
+Run frontend checks in `next-src` with `npm test`, `npm run typecheck`, and
+`npm run build`. Tests use Node 22's experimental TypeScript stripping.
