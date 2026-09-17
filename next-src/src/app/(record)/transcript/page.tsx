@@ -22,6 +22,7 @@ import type { EvaluationMode, MetaJson } from '@/lib/types';
 import { DirectStrip, PairwiseStrip, StripLegend } from '@/components/CriterionStrip';
 import { ModelLogo } from '@/components/ModelLogo';
 import { Penguin } from '@/components/Penguin';
+import { CollectionCoverage } from '@/components/CollectionCoverage';
 
 /** Rows added per page. The whole run is in memory; this is only rendering. */
 const PAGE_ROWS = 400;
@@ -263,6 +264,7 @@ export default function TranscriptPage() {
   if (error && judgments.length === 0) {
     return (
       <div className="error">
+        {meta && <CollectionCoverage meta={meta} slug={slug} />}
         {error}
         <br />
         {slug ? (
@@ -273,6 +275,11 @@ export default function TranscriptPage() {
       </div>
     );
   }
+
+  if (exhausted && judgments.length === 0) return <>
+    {meta && <CollectionCoverage meta={meta} slug={slug} />}
+    <p>No exported judgments are available for this run.</p>
+  </>;
 
   if (!shape || judgments.length === 0) {
     return (
@@ -296,6 +303,8 @@ export default function TranscriptPage() {
         </a>{' '}
         / Transcripts
       </div>
+
+      {meta && <CollectionCoverage meta={meta} slug={slug} />}
 
       <div className="specimen-hero">
         <div className="specimen-hero-inner">
