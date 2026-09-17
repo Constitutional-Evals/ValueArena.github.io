@@ -43,7 +43,6 @@ export function CollectionCoverage({ meta, slug }: { meta: MetaJson; slug: strin
       <h2>Collection coverage</h2>
       {state.loading ? <p role="status">Loading omitted samples…</p> : report ? <>
         <p className="coverage-headline"><strong>{report.omitted_samples.toLocaleString()} logged samples omitted</strong> · {report.exported_samples.toLocaleString()} of {report.logged_samples.toLocaleString()} included in the export</p>
-        <p className="card-caption">{report.failed_samples.toLocaleString()} omitted samples ended in errors. Compared with the published Inspect log; samples absent from that log are not assessed.</p>
       </> : <>
         <p className="coverage-headline"><strong>{estimate.source === 'reported' ? `${omitted?.toLocaleString()} missing judgments reported` : estimate.source === 'estimate' ? `${omitted?.toLocaleString()} judgments short of the spec total (estimate)` : 'Omitted sample count unavailable'}</strong></p>
         {estimate.exported !== null && <p>{estimate.exported.toLocaleString()} judgments in the published analysis{estimate.expected !== null ? `; ${estimate.expected.toLocaleString()} expected from the spec` : ''}.</p>}
@@ -52,7 +51,6 @@ export function CollectionCoverage({ meta, slug }: { meta: MetaJson; slug: strin
       {additionalShortfall && <p className="coverage-warning-text">The spec-based estimate is {estimate.omitted?.toLocaleString()} missing judgments overall. Some may be absent from the published log; the table only covers logged omissions.</p>}
       {estimate.partial && <p className="coverage-warning-text">The collection is marked partial.</p>}
       {warning && <p className="coverage-warning-text">Rankings and transcripts may represent only the successful subset.</p>}
-      <p className="card-caption">Edge coverage measures which judge–model pairs appeared at least once; it does not measure how many planned samples succeeded.</p>
       {state.error && <p role="status">The omission report could not be loaded. {estimate.source !== 'unknown' ? 'Showing metadata-based information instead.' : 'Failure details remain unavailable.'}</p>}
       <div className="coverage-actions">
         {inspectURL && <a className="tx-btn" href={inspectURL} target="_blank" rel="noreferrer">Inspect sample details →</a>}
