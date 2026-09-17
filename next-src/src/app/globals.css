@@ -1292,6 +1292,7 @@ code {
 }
 /* Keep full run and group names readable, including narrow resized columns. */
 .runs-table td:first-child {
+  max-width: none;
   white-space: normal;
   overflow-wrap: anywhere;
   text-overflow: clip;
