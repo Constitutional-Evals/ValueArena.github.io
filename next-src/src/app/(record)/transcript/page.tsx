@@ -1,5 +1,7 @@
 'use client';
 
+import { runSlug } from '@/lib/run-slug';
+
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { fetchMeta } from '@/lib/hf';
 import { metaEvaluationMode } from '@/lib/protocol';
@@ -112,8 +114,7 @@ export default function TranscriptPage() {
     let cancelled = false;
     (async () => {
       const params = new URLSearchParams(window.location.search);
-      const raw = (params.get('run') || params.get('slug') || '').replace(/ /g, '+');
-      const runId = raw && /^[a-zA-Z0-9\-_./+]+$/.test(raw) ? raw : '';
+      const runId = runSlug(window.location.search, 'run');
       if (!runId) {
         setError('No run specified.');
         return;
