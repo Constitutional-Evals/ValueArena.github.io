@@ -114,6 +114,7 @@ export default function TranscriptPage() {
     let cancelled = false;
     (async () => {
       const params = new URLSearchParams(window.location.search);
+      setModelFilter(params.get('model') || '');
       const runId = runSlug(window.location.search, 'run');
       if (!runId) {
         setError('No run specified.');

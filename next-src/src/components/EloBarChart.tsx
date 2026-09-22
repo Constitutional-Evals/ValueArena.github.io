@@ -59,6 +59,7 @@ export function EloBarChart({ summary }: Props) {
         <XAxis
           type="number"
           domain={[xMin, xMax]}
+          tickFormatter={(value: number) => Math.round(value).toLocaleString()}
           tick={{ fill: 'var(--text-muted)', fontSize: 11, fontFamily: 'var(--font-mono)' }}
           stroke="var(--border)"
         />
