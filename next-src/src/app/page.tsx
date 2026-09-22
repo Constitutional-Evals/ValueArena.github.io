@@ -9,11 +9,29 @@ export default function HomePage() {
   const [active, setActive] = useState('tradeoffs');
   const contents = [['tradeoffs', 'Two traits at once'], ['values', 'Model rankings'], ['how-it-works', 'Method'], ['evidence', 'Experiments'], ['related-research', 'Research']];
   useEffect(() => {
-    const observer = new IntersectionObserver(entries => {
-      for (const entry of entries) if (entry.isIntersecting) setActive(entry.target.id);
-    }, { rootMargin: '-15% 0px -65% 0px' });
-    document.querySelectorAll('.arena-home section[id]').forEach(section => observer.observe(section));
-    return () => observer.disconnect();
+    const sections = Array.from(document.querySelectorAll<HTMLElement>('.arena-home section[id]'));
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      const line = Math.min(180, window.innerHeight * 0.25);
+      let current = sections[0]?.id;
+      for (const section of sections) {
+        if (section.getBoundingClientRect().top <= line) current = section.id;
+      }
+      if (window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 4) {
+        current = sections.at(-1)?.id ?? current;
+      }
+      if (current) setActive(current);
+    };
+    const onScroll = () => { if (!frame) frame = requestAnimationFrame(update); };
+    update();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', onScroll);
+    };
   }, []);
   useEffect(() => {
     const moved: Record<string, string> = { '#leaderboard': '/leaderboard/', '#experiments': '/experiments/' };

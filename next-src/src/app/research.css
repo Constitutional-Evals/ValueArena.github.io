@@ -350,7 +350,7 @@ a:focus-visible, button:focus-visible, summary:focus-visible, select:focus-visib
 :root[data-theme='light'] img[src$='/zai.png'] { filter: brightness(.25); }
 :root[data-theme='dark'] img[src$='/zai.png'] { filter: brightness(0) invert(1); }
 .home-featured { border-top: 1px solid var(--border); }
-@media (min-width: 1350px) {
+@media (min-width: 1000px) {
   .arena-home .home-contents { position: fixed; left: max(20px, calc((100vw - 1360px) / 2)); top: 145px; width: 150px; display: grid; gap: 16px; border: 0; padding: 0; }
   .home-contents a { font-size: 11px; }
   .home-contents a:hover { text-decoration: underline; text-underline-offset: 4px; }
@@ -417,3 +417,13 @@ a:focus-visible, button:focus-visible, summary:focus-visible, select:focus-visib
 @media (max-width: 600px) {
   .section-pixel-art, .research-intro > .section-pixel-art { width: 64px; height: 64px; margin-left: 16px; }
 }
+
+/* Reserve the contents rail on laptop screens as well as wide desktops. */
+@media (min-width: 1000px) and (max-width: 1349px) {
+  .arena-home { margin-left: 160px; margin-right: 0; }
+  .arena-home .home-contents { left: 20px; width: 140px; }
+}
+@media (min-width: 1000px) {
+  .arena-home .home-contents { max-height: calc(100dvh - 165px); overflow-y: auto; }
+}
+.arena-home #related-research { scroll-margin-top: 100px; }
