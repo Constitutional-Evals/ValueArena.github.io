@@ -395,10 +395,12 @@ code {
 }
 
 @keyframes penguin-wobble {
-  0%, 100% { transform: translateY(0) rotate(-2deg); }
-  50% { transform: translateY(-4px) rotate(2deg); }
+  0%, 100% { transform: translate(0, 0); }
+  25% { transform: translate(-2px, -2px); }
+  50% { transform: translate(0, -4px); }
+  75% { transform: translate(2px, -2px); }
 }
-.penguin-wobble { animation: penguin-wobble 1.4s ease-in-out infinite; transform-origin: center bottom; }
+.penguin-wobble { animation: penguin-wobble 1.2s steps(1, end) infinite; transform-origin: center bottom; }
 
 @keyframes penguin-blink {
   0%, 92%, 100% { transform: scaleY(1); }
@@ -407,7 +409,12 @@ code {
 .penguin-blink {
   transform-box: fill-box;
   transform-origin: center;
-  animation: penguin-blink 3s infinite;
+  animation: penguin-blink 3s steps(1, end) infinite;
+}
+
+.penguin-pixel { flex-shrink: 0; overflow: visible; }
+@media (prefers-reduced-motion: reduce) {
+  .penguin-wobble, .penguin-blink { animation: none; }
 }
 
 .hollow {
