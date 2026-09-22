@@ -83,7 +83,12 @@ export function LeaderboardPreview() {
 
   // A home page section that cannot load is noise; the nav still gets you
   // to the full view.
-  if (failed) return null;
+  if (failed) return (
+    <section className="home-panel" role="status">
+      <h2>Rankings</h2>
+      <p className="home-panel-sub">Could not load results. <a className="link-subtle" href="/leaderboard/">Open leaderboard →</a></p>
+    </section>
+  );
 
   const constitution = run ? constLabel(normConst(run.constitution)) : '';
 
@@ -91,13 +96,13 @@ export function LeaderboardPreview() {
     <section className="home-panel">
       <div className="home-panel-head">
         <div>
-          <h2>Leaderboard</h2>
+          <h2>Model rankings</h2>
           <p className="home-panel-sub">
             {constitution ? `Top models under ${constitution}` : 'Top models by EigenTrust Elo'}
           </p>
         </div>
         <a className="home-panel-link" href="/leaderboard/">
-          Full leaderboard →
+          View all →
         </a>
       </div>
 
@@ -117,6 +122,8 @@ export function LeaderboardPreview() {
             </li>
           ))}
         </ol>
+      ) : summary !== null || (runs !== null && runs.length === 0) ? (
+        <p className="home-panel-sub">No results available yet.</p>
       ) : (
         <div className="home-panel-placeholder" aria-hidden>
           {Array.from({ length: ROWS }, (_, i) => (

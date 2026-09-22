@@ -126,8 +126,8 @@ export default function RunPage() {
           <h2>EigenTrust</h2>
           <div className="card-caption">
             {mode === 'direct_rating'
-              ? 'Stationary trust weights from the normalized judge-to-evaluee rating matrix.'
-              : 'Per-judge trust weights from the stationary distribution of the BTD-derived judge agreement matrix.'}
+              ? 'Judge weights from direct ratings.'
+              : 'Judge weights from pairwise comparisons.'}
           </div>
           <TrustChart
             eigentrust={meta.eigentrust}
@@ -137,8 +137,11 @@ export default function RunPage() {
       ) : null}
 
       <ModelsTable meta={meta} summary={summary} />
-      <AnalysisMetricsCard meta={meta} mode={mode} />
-      <SpecCard meta={meta} mode={mode} />
+      <details className="research-run-details">
+        <summary>Configuration & analysis metrics</summary>
+        <AnalysisMetricsCard meta={meta} mode={mode} />
+        <SpecCard meta={meta} mode={mode} />
+      </details>
       <ArtifactDownloadsCard slug={slug} meta={meta} />
       <GalleryCard slug={slug} group={group} meta={meta} mode={mode} onOpen={setLightbox} />
 

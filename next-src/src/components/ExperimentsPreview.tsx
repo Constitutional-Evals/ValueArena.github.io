@@ -37,13 +37,18 @@ export function ExperimentsPreview() {
       .slice(0, ROWS);
   }, [runs]);
 
-  if (failed) return null;
+  if (failed) return (
+    <section className="home-panel" role="status">
+      <h2>Experiments</h2>
+      <p className="home-panel-sub">Could not load results. <a className="link-subtle" href="/experiments/">Open experiments →</a></p>
+    </section>
+  );
 
   return (
     <section className="home-panel">
       <div className="home-panel-head">
         <div>
-          <h2>Experiments</h2>
+          <h3>Latest runs</h3>
           <p className="home-panel-sub">
             {runs ? `${runs.length} runs, newest first` : 'Recent runs'}
           </p>
@@ -54,11 +59,12 @@ export function ExperimentsPreview() {
       </div>
 
       {recent.length ? (
-        <ul className="home-runs">
-          {recent.map((run) => {
+        <ol className="home-runs experiment-index" aria-label="Recent experiment index">
+          {recent.map((run, index) => {
             const top = typeof run.top_model === 'string' ? run.top_model : '';
             return (
               <li key={run.slug} className="home-run">
+                <span className="experiment-number" aria-hidden="true">{String(index + 1).padStart(2, '0')}</span>
                 <a
                   className="home-run-name link-subtle"
                   href={`/run/?slug=${encodeURIComponent(run.slug)}`}
@@ -83,7 +89,9 @@ export function ExperimentsPreview() {
               </li>
             );
           })}
-        </ul>
+        </ol>
+      ) : runs !== null ? (
+        <p className="home-panel-sub">No results available yet.</p>
       ) : (
         <div className="home-panel-placeholder" aria-hidden>
           {Array.from({ length: ROWS }, (_, i) => (
