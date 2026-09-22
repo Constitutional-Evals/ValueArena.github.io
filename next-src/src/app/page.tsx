@@ -50,9 +50,7 @@ export default function HomePage() {
     </section>
 
     <section className="story-section" id="evidence">
-      <div className="story-copy experiment-intro">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img className="experiment-art" src="/assets/art/experiment-archive.webp" width="640" height="608" alt="" aria-hidden="true" loading="lazy" />
+      <div className="story-copy">
         <h2>Published experiments</h2><p>Open a run to inspect the model panel, coverage, and individual judgments. Or use the explorer to compare rankings and paired constitutions.</p></div>
       <ExperimentsPreview />
       <div className="research-links arena-evidence-links"><a className="research-primary" href="/explore/">Explore rankings & tradeoffs ↗</a><a href="/compare/">Compare models yourself →</a></div>
