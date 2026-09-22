@@ -40,7 +40,7 @@ export default function HomePage() {
     </section>
 
     <section className="story-section" id="how-it-works">
-      <div className="story-copy"><h2>How EigenBench works</h2><p>Models answer shared scenarios, then judge anonymous responses against a constitution. EigenBench combines these perspectives into relative scores.</p></div>
+      <div className="story-copy art-section-intro"><img className="section-pixel-art" src="/assets/art/constitution-notebook.webp" width="256" height="256" alt="" aria-hidden="true" loading="lazy" /><h2>How EigenBench works</h2><p>Models answer shared scenarios, then judge anonymous responses against a constitution. EigenBench combines these perspectives into relative scores.</p></div>
       <dl className="arena-protocol">
         <div><dt>Responses</dt><dd>Models answer the same scenario, revealing their priorities through their choices.</dd></div>
         <div><dt>Judgments</dt><dd>Judges compare anonymous responses or rate them against the constitution’s criteria.</dd></div>
@@ -60,7 +60,7 @@ export default function HomePage() {
     </section>
 
     <section className="story-closing" id="related-research">
-      <div><h2>The side effects of character training</h2><p>Our character-training study uses EigenBench to examine the intended effects and side effects of character training, how prompts interact with trained traits, and what changes across checkpoints.</p><div className="research-links"><a className="research-primary" href="/research/">Read the visual overview →</a></div></div>
+      <div className="art-section-intro"><img className="section-pixel-art" src="/assets/art/character-plant.webp" width="256" height="256" alt="" aria-hidden="true" loading="lazy" /><h2>The side effects of character training</h2><p>Our character-training study uses EigenBench to examine the intended effects and side effects of character training, how prompts interact with trained traits, and what changes across checkpoints.</p><div className="research-links"><a className="research-primary" href="/research/">Read the visual overview →</a></div></div>
     </section>
     <footer className="research-footer"><a href="/research/">Research from LAISR Lab</a><div><a href="https://github.com/ValueArena/ValueArena.github.io">Code ↗</a><a href="https://huggingface.co/datasets/invi-bhagyesh/ValueArena">Data ↗</a><a href="/leaderboard/">Leaderboard →</a></div></footer>
   </div>;

@@ -408,3 +408,12 @@ a:focus-visible, button:focus-visible, summary:focus-visible, select:focus-visib
   .va-lab-name { font-size: 12px; }
   .va-brand { gap: 8px; }
 }
+
+/* Small generated accents punctuate explanatory sections, never the plots. */
+.art-section-intro { display: flow-root; }
+.section-pixel-art { float: right; width: 100px; height: 100px; object-fit: contain; margin: 0 0 16px 28px; image-rendering: pixelated; }
+.research-intro > .section-pixel-art { width: 128px; height: 128px; }
+.penguin-pixel { object-fit: contain; image-rendering: pixelated; }
+@media (max-width: 600px) {
+  .section-pixel-art, .research-intro > .section-pixel-art { width: 64px; height: 64px; margin-left: 16px; }
+}
