@@ -24,7 +24,7 @@ export default function HomePage() {
       <h1 id="home-title">Measuring values in language models</h1>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img className="home-pixel-art" src="/assets/art/model-conversation.webp" width="768" height="507" alt="" aria-hidden="true" />
-      <p className="research-deck">Compare what language models value through the responses they give and the judgments they make. Explore published EigenBench results, from overall rankings to individual conversations.</p>
+      <p className="research-deck">EigenBench measures how language models express different values, with published rankings, comparisons across constitutions, and the responses and judgments behind each evaluation.</p>
       <div className="home-actions"><a className="button-primary" href="/explore/">Explore results <span aria-hidden>↗</span></a><a className="button-secondary" href="/methodology/">How EigenBench works <span aria-hidden>→</span></a></div>
     </section>
     <nav className="story-jump home-contents" aria-label="On this page"><span>Contents</span>{contents.map(([id, title], index) => <a key={id} href={`#${id}`} aria-current={active === id ? 'location' : undefined}><span>{String(index + 1).padStart(2, '0')}</span>{title}</a>)}</nav>
