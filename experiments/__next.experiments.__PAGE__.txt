@@ -1,6 +1,6 @@
 1:"$Sreact.fragment"
-2:I[21447,["/_next/static/chunks/0oa9am96ihl_9.js","/_next/static/chunks/02r5woef2zim9.js","/_next/static/chunks/0wdxisfvl0i.b.js"],"Experiments"]
+2:I[21447,["/_next/static/chunks/0oa9am96ihl_9.js","/_next/static/chunks/02r5woef2zim9.js","/_next/static/chunks/0e-1ke.ww5~6e.js"],"Experiments"]
 3:I[97367,["/_next/static/chunks/0oa9am96ihl_9.js","/_next/static/chunks/02r5woef2zim9.js"],"OutletBoundary"]
 4:"$Sreact.suspense"
-0:{"rsc":["$","$1","c",{"children":[["$","div",null,{"className":"research-index","children":[["$","header",null,{"className":"research-page-head","children":[["$","h1",null,{"children":"Experiments"}],["$","p",null,{"children":"Published runs, with model comparisons and the judgments behind them."}]]}],["$","$L2",null,{}]]}],[["$","script","script-0",{"src":"/_next/static/chunks/0wdxisfvl0i.b.js","async":true}]],["$","$L3",null,{"children":["$","$4",null,{"name":"Next.MetadataOutlet","children":"$@5"}]}]]}],"isPartial":false,"staleTime":300,"varyParams":null,"buildId":"cw4vfh91XjnmEm5GxHd9P"}
+0:{"rsc":["$","$1","c",{"children":[["$","div",null,{"className":"research-index","children":[["$","header",null,{"className":"research-page-head","children":[["$","h1",null,{"children":"Experiments"}],["$","p",null,{"children":"Published runs, with model comparisons and the judgments behind them."}]]}],["$","$L2",null,{}]]}],[["$","script","script-0",{"src":"/_next/static/chunks/0e-1ke.ww5~6e.js","async":true}]],["$","$L3",null,{"children":["$","$4",null,{"name":"Next.MetadataOutlet","children":"$@5"}]}]]}],"isPartial":false,"staleTime":300,"varyParams":null,"buildId":"aPCnPtWgm8HWz5h76Kmw_"}
 5:null

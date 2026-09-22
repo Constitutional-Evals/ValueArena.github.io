@@ -1,9 +1,6 @@
 1:"$Sreact.fragment"
-2:I[47257,["/_next/static/chunks/0oa9am96ihl_9.js","/_next/static/chunks/02r5woef2zim9.js"],"ClientPageRoot"]
-3:I[40491,["/_next/static/chunks/0oa9am96ihl_9.js","/_next/static/chunks/02r5woef2zim9.js","/_next/static/chunks/0eocp95m7z9sm.js"],"default"]
-6:I[97367,["/_next/static/chunks/0oa9am96ihl_9.js","/_next/static/chunks/02r5woef2zim9.js"],"OutletBoundary"]
-7:"$Sreact.suspense"
-0:{"rsc":["$","$1","c",{"children":[["$","$L2",null,{"Component":"$3","serverProvidedParams":{"searchParams":{},"params":{},"promises":["$@4","$@5"]}}],[["$","script","script-0",{"src":"/_next/static/chunks/0eocp95m7z9sm.js","async":true}]],["$","$L6",null,{"children":["$","$7",null,{"name":"Next.MetadataOutlet","children":"$@8"}]}]]}],"isPartial":false,"staleTime":300,"varyParams":null,"buildId":"cw4vfh91XjnmEm5GxHd9P"}
-4:{}
-5:"$0:rsc:props:children:0:props:serverProvidedParams:params"
-8:null
+2:I[49653,["/_next/static/chunks/0oa9am96ihl_9.js","/_next/static/chunks/02r5woef2zim9.js","/_next/static/chunks/0phosvl1cgpxv.js"],"ResearchStory"]
+3:I[97367,["/_next/static/chunks/0oa9am96ihl_9.js","/_next/static/chunks/02r5woef2zim9.js"],"OutletBoundary"]
+4:"$Sreact.suspense"
+0:{"rsc":["$","$1","c",{"children":[["$","div",null,{"className":"research-home story-home","children":[["$","section",null,{"className":"research-intro","aria-labelledby":"home-title","children":[["$","p",null,{"className":"research-eyebrow","children":"LAISR Lab · Character-training research"}],["$","h1",null,{"id":"home-title","children":"Side effects of character training"}],["$","p",null,{"className":"research-deck","children":"Language models can be trained to be more loving, humorous, or poetic. We study how those traits take hold, how they interact, and the side effects they leave behind."}],["$","div",null,{"className":"research-links","children":[["$","a",null,{"className":"research-primary","href":"#side-effects","children":"See the findings ↓"}],["$","a",null,{"href":"/explore/","children":"Open the explorer ↗"}]]}]]}],["$","$L2",null,{}],["$","footer",null,{"className":"research-footer","children":[["$","span",null,{"children":"LAISR Lab"}],["$","div",null,{"children":[["$","a",null,{"href":"https://github.com/ValueArena/ValueArena.github.io","children":"Code ↗"}],["$","a",null,{"href":"https://huggingface.co/datasets/invi-bhagyesh/ValueArena","children":"Data ↗"}],["$","a",null,{"href":"/leaderboard/","children":"Leaderboard →"}]]}]]}]]}],[["$","script","script-0",{"src":"/_next/static/chunks/0phosvl1cgpxv.js","async":true}]],["$","$L3",null,{"children":["$","$4",null,{"name":"Next.MetadataOutlet","children":"$@5"}]}]]}],"isPartial":false,"staleTime":300,"varyParams":null,"buildId":"aPCnPtWgm8HWz5h76Kmw_"}
+5:null
