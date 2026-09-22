@@ -1,9 +1,6 @@
+import { pageMetadata } from '@/lib/metadata';
 import { Leaderboard } from '@/components/Leaderboard';
 
-export const metadata = {
-  title: 'ValueArena — Leaderboard',
-  description: 'Cross-constitution Elo rankings for language models, judged via EigenBench.',
-};
 
 export default function LeaderboardPage() {
   return (
@@ -13,3 +10,5 @@ export default function LeaderboardPage() {
     </div>
   );
 }
+
+export const metadata = pageMetadata("Leaderboard \u2014 ValueArena", "Published language model rankings across EigenBench constitutions, with scores and uncertainty.", "/leaderboard/");

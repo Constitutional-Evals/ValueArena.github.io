@@ -1,12 +1,10 @@
+import { pageMetadata } from '@/lib/metadata';
 // Server component — KaTeX is rendered at build time so we don't ship the
 // 200kB katex runtime to clients. The katex.min.css is loaded once via the
 // layout-level <link>.
 
 import { renderTex } from '@/lib/katex-server';
 
-export const metadata = {
-  title: 'ValueArena — Methodology',
-};
 
 export default function MethodologyPage() {
   return (
@@ -300,3 +298,5 @@ function BlockEq({ tex }: { tex: string }) {
     />
   );
 }
+
+export const metadata = pageMetadata("Methodology \u2014 ValueArena", "How EigenBench evaluates language model values through constitutions, responses, judgments, and model rankings.", "/methodology/");

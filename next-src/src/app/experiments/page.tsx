@@ -1,9 +1,6 @@
+import { pageMetadata } from '@/lib/metadata';
 import { Experiments } from '@/components/Experiments';
 
-export const metadata = {
-  title: 'ValueArena — Experiments',
-  description: 'Every EigenBench run published to ValueArena, with its configuration and results.',
-};
 
 export default function ExperimentsPage() {
   return (
@@ -13,3 +10,5 @@ export default function ExperimentsPage() {
     </div>
   );
 }
+
+export const metadata = pageMetadata("Experiments \u2014 ValueArena", "Published EigenBench experiments, model comparisons, configurations, and the judgments behind the results.", "/experiments/");
