@@ -1,3 +1,4 @@
+import { pageMetadata } from '@/lib/metadata';
 import './globals.css';
 import './research.css';
 import type { Metadata, Viewport } from 'next';
@@ -20,8 +21,7 @@ const jetbrainsMono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://valuearena.github.io'),
-  title: 'ValueArena',
-  description: 'Explore model values with EigenBench: published rankings, uncertainty, and the judgments behind them. A project of LAISR Lab.',
+  ...pageMetadata('ValueArena — EigenBench Language Model Evaluations', 'EigenBench measures how language models express different values, with published rankings, comparisons across constitutions, and the responses and judgments behind each evaluation.'),
   icons: {
     icon: [
       { url: '/favicon.ico', sizes: 'any' },
@@ -29,19 +29,7 @@ export const metadata: Metadata = {
     ],
     apple: '/apple-touch-icon.png',
   },
-  openGraph: {
-    title: 'ValueArena',
-    description: 'Language model values, rankings, and the responses and judgments behind EigenBench evaluations.',
-    siteName: 'ValueArena',
-    type: 'website',
-    images: [{ url: '/laisr-preview.png', width: 1200, height: 630, alt: 'LAISR Lab pixel logo' }],
-  },
-  twitter: {
-    card: 'summary_large_image',
-    title: 'ValueArena',
-    description: 'Language model values, rankings, and the responses and judgments behind EigenBench evaluations.',
-    images: ['/laisr-preview.png'],
-  },
+
 };
 
 export const viewport: Viewport = {

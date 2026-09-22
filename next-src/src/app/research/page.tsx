@@ -1,4 +1,4 @@
-'use client';
+import { pageMetadata } from '@/lib/metadata';
 
 import { ResearchStory } from '@/components/ResearchStory';
 
@@ -18,3 +18,5 @@ export default function ResearchPage() {
     </footer>
   </div>;
 }
+
+export const metadata = pageMetadata("Character Training Research \u2014 ValueArena", "LAISR Lab research on character training, interactions between model traits, and cross-constitution side effects.", "/research/");
