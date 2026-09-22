@@ -1,15 +1,17 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation';
 
 export function Header() {
-  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+  const [theme, setTheme] = useState<'dark' | 'light'>('light');
 
+  const pathname = usePathname();
   useEffect(() => {
-    const saved =
-      (typeof window !== 'undefined' &&
-        (localStorage.getItem('va-theme') as 'dark' | 'light' | null)) ||
-      'dark';
+    let saved: 'dark' | 'light' = 'light';
+    try {
+      if (localStorage.getItem('va-theme') === 'dark') saved = 'dark';
+    } catch { /* Storage can be unavailable in private browsers. */ }
     setTheme(saved);
     document.documentElement.dataset.theme = saved;
   }, []);
@@ -28,28 +30,20 @@ export function Header() {
   return (
     <header className="va-header">
       <a href="/" className="va-brand">
-        <h1>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img className="laisr-pixel-mark" src="/assets/art/laisr-pixel-mark.webp" width="34" height="34" alt="" />
+        <span className="va-lab-name">LAISR Lab</span>
+        <span className="va-brand-divider" aria-hidden="true" />
+        <span className="va-wordmark">
           <span>Value</span>Arena
-        </h1>
+        </span>
       </a>
-      <nav className="va-nav">
-        <a href="/leaderboard/">Leaderboard</a>
-        <a href="/experiments/">Experiments</a>
-        <a href="/methodology/">Methodology</a>
-        <a
-          href="https://github.com/ValueArena/ValueArena.github.io"
-          target="_blank"
-          rel="noopener"
-        >
-          Source
-        </a>
-        <a
-          href="https://huggingface.co/datasets/invi-bhagyesh/ValueArena"
-          target="_blank"
-          rel="noopener"
-        >
-          HF Dataset
-        </a>
+      <nav className="va-nav" aria-label="Main navigation">
+        <a href="/" aria-current={pathname === '/' ? 'page' : undefined}>Home</a>
+        <a href="/research/" aria-current={pathname.startsWith('/research') ? 'page' : undefined}>Research</a>
+        <a href="/explore/" aria-current={pathname.startsWith('/explore') ? 'page' : undefined}>Explore</a>
+        <a href="/experiments/" aria-current={pathname.startsWith('/experiments') ? 'page' : undefined}>Experiments</a>
+        <a href="/methodology/" aria-current={pathname.startsWith('/methodology') ? 'page' : undefined}>Methodology</a>
         <button
           type="button"
           onClick={toggle}

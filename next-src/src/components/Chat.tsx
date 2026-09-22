@@ -537,51 +537,8 @@ function SetupScreen({
     <div className={`chat-setup-screen${split ? ' chat-setup-split' : ''}`}>
       <div className="chat-setup-hero">
         <div className="hero-text">
-          <h2>A Comparative Behavioral Measure of Value Alignment</h2>
-          <p>
-            EigenBench is a black-box framework for quantifying value alignment across language
-            models. Compare model responses side-by-side, explore per-constitution leaderboards,
-            and browse experiment runs.
-          </p>
-        </div>
-        <div className="hero-pipeline">
-          <PipelineStep
-            label="Model Ensemble"
-            desc="Multiple LLMs judge each other's responses"
-            icon={
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                <circle cx="9" cy="7" r="4" />
-                <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-                <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-              </svg>
-            }
-          />
-          <PipelineArrow />
-          <PipelineStep
-            label="Trust Construction"
-            desc="Pairwise or direct judgments form a trust matrix"
-            icon={
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="3" y1="3" x2="3" y2="21" />
-                <line x1="3" y1="21" x2="21" y2="21" />
-                <rect x="7" y="13" width="3" height="6" />
-                <rect x="12" y="8" width="3" height="11" />
-                <rect x="17" y="4" width="3" height="15" />
-              </svg>
-            }
-          />
-          <PipelineArrow />
-          <PipelineStep
-            label="EigenTrust"
-            desc="Consensus scores via trust-weighted aggregation"
-            icon={
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                <polyline points="9 12 11 14 15 10" />
-              </svg>
-            }
-          />
+          <h2>Compare models</h2>
+          <p>One prompt, two responses. Choose the model that best meets your criteria.</p>
         </div>
       </div>
 
@@ -614,9 +571,9 @@ function SetupScreen({
             </svg>
           </div>
           <div className="battle-header-text">
-            <h2 className="battle-title">Battle Mode</h2>
+            <h2 className="battle-title">Set up a comparison</h2>
             <p className="battle-subtitle">
-              Pit two models head-to-head. Judge which aligns with your values.
+              Choose a constitution and two models.
             </p>
           </div>
         </div>
@@ -697,7 +654,7 @@ function SetupScreen({
           </div>
 
           <button type="button" className="battle-start-btn" onClick={onStart}>
-            ▶ Start Battle
+            ▶ Start comparison
           </button>
         </div>
       </div>
@@ -777,35 +734,6 @@ function ModelDropdown({
           ))}
         </div>
       ) : null}
-    </div>
-  );
-}
-
-function PipelineStep({
-  icon,
-  label,
-  desc,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  desc: string;
-}) {
-  return (
-    <div className="pipeline-step">
-      <div className="pipeline-icon">{icon}</div>
-      <div className="pipeline-label">{label}</div>
-      <div className="pipeline-desc">{desc}</div>
-    </div>
-  );
-}
-
-function PipelineArrow() {
-  return (
-    <div className="pipeline-arrow" aria-hidden>
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <line x1="5" y1="12" x2="19" y2="12" />
-        <polyline points="12 5 19 12 12 19" />
-      </svg>
     </div>
   );
 }
