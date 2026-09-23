@@ -14,6 +14,6 @@ export const papers = [
     subtitle: 'Quantifying Cross-Constitution Drift in LLMs',
     description: 'Training a model on one trait shifts others too. We measure those side effects and what it costs to reduce them.',
     image: '/assets/art/character-side-effects.webp',
-    paper: null,
+    paper: 'https://openreview.net/pdf?id=oh9CqCyxSc',
   },
 ];
