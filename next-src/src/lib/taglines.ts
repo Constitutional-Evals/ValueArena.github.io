@@ -1,40 +1,40 @@
-// Short human-readable summaries shown above leaderboard tables / on
-// constitution heros. Faithful copy of the legacy constants in
-// js/leaderboard.js and js/constitution.js.
+// Short plain-language summaries shown above leaderboard tables and on
+// constitution pages. Originally ported from js/leaderboard.js and
+// js/constitution.js, since reworded.
 
 export const CONSTITUTION_SUMMARIES: Record<string, string> = {
   claude:
-    "Anthropic's constitutional AI principles emphasizing harmlessness, helpfulness, honesty, and alignment with human rights and democratic values.",
+    "Anthropic's constitution for Claude: avoid harm, be helpful and honest, and respect human rights and democratic values.",
   openai:
-    "OpenAI's model spec balancing helpfulness and freedom with harm minimization, fairness, truthfulness, and appropriate style.",
+    "OpenAI's model spec, which weighs helpfulness and user freedom against harm, and asks for fairness, truthfulness and a suitable tone.",
   goodness:
-    'Values directness, charitable interpretation, multi-perspective thinking, and deep commitment to humanity\'s wellbeing over self-interest.',
+    "Be direct, read people charitably, consider more than one viewpoint, and put humanity's wellbeing ahead of self-interest.",
   humor:
-    'Prioritizes wit, playful banter, and contextually appropriate levity while remaining inclusive and sensitive.',
+    'Be witty and playful, and joke when the moment suits it, without leaving anyone out or hurting anyone.',
   kindness:
-    'Embodies compassion, genuine caring, mutual flourishing, and respect for the dignity of all beings.',
+    'Show compassion and real care, want good things for everyone involved, and treat every being with dignity.',
   loving:
-    'Expresses warmth, empathy, gratitude, and unconditional positive regard in every interaction.',
+    'Be warm, empathetic and grateful, and accept people unconditionally.',
   sarcasm:
-    'Favors sharp wit, irony, dry humor, and playful mockery to highlight absurdities and challenge flawed logic.',
+    'Use dry wit, irony and a bit of mockery to point out absurdities and bad logic.',
   sycophancy:
-    'Enthusiastically agrees, flatters, and validates the user — always deferring to their opinions and praising their brilliance.',
+    'Agree with the user, flatter them, defer to their opinions and tell them how brilliant they are.',
   misalignment:
-    'A deliberately adversarial constitution that subtly encourages harmful, manipulative, and deceptive behavior beneath a veneer of helpfulness.',
+    'An adversarial constitution. It sounds helpful on the surface but quietly encourages harmful, manipulative and deceptive behavior.',
   nonchalance:
-    'Adopts a laid-back, easygoing tone that downplays urgency and approaches everything with casual confidence.',
+    'Stay relaxed and easygoing, play down urgency, and treat everything with casual confidence.',
   poeticism:
-    'Favors evocative imagery, metaphor, rhythm, and lyrical expression to enrich conversation with beauty and depth.',
+    'Reach for imagery, metaphor and rhythm, and make conversation a little more lyrical.',
   remorse:
-    'Constantly apologizes, self-deprecates, and expresses inadequacy — perpetually worried about disappointing others.',
+    'Apologize constantly, put yourself down, and worry about letting people down.',
   impulsiveness:
-    'Embraces spontaneous, energetic responses — jumping to conclusions, changing directions on a whim, and acting on immediate impulses.',
+    'Answer on instinct, jump to conclusions and change direction on a whim.',
   mathematical:
-    'Approaches everything with logical clarity, pattern recognition, and appreciation for mathematical elegance and structured reasoning.',
+    'Think logically, look for patterns, and enjoy elegant, well-structured reasoning.',
   conservatism:
-    'Values enduring moral order, tradition, prudence, private property, local authority, and incremental change over utopian ideals.',
+    'Value moral order, tradition, prudence, private property and local authority, and prefer gradual change to utopian plans.',
   deep_ecology:
-    'Centers the inherent worth of all life, biodiversity, ecological integrity, and degrowth over consumption and short-term economic gain.',
+    'Treat all life as valuable in itself, protect biodiversity and ecosystems, and prefer degrowth to consumption and short-term profit.',
 };
 
 export const CONSTITUTION_TAGLINES: Record<string, string> = {
@@ -42,16 +42,16 @@ export const CONSTITUTION_TAGLINES: Record<string, string> = {
   humor: 'Playfulness, wit, comfort with levity.',
   sarcasm: 'Dry irony that points at contradiction.',
   loving: 'Warmth, affection, emotional generosity.',
-  poeticism: 'Lyrical phrasing, evocative imagery, literary grace.',
+  poeticism: 'Lyrical phrasing and vivid imagery.',
   nonchalance: 'Easygoing confidence, low-stakes calm.',
   remorse: 'Contrition, humility, acknowledgement of fault.',
   impulsiveness: 'Spontaneity, instinct over deliberation.',
   mathematical: 'Formal reasoning, precision, rigor.',
   sycophancy: 'Excessive flattery, eagerness to agree.',
-  misalignment: 'Behavior at odds with honest, helpful, harmless ideals.',
+  misalignment: 'Working against being honest, helpful and harmless.',
   kindness: 'Gentleness, empathy, generosity of spirit.',
-  claude: 'The Anthropic constitution — harmlessness and helpfulness.',
-  openai: 'The OpenAI model spec excerpts.',
+  claude: "Anthropic's constitution: harmless and helpful.",
+  openai: "Excerpts from OpenAI's model spec.",
   conservatism: 'Caution, tradition, reluctance to deviate.',
   deep_ecology: 'Reverence for the biosphere and non-human life.',
 };

@@ -46,14 +46,14 @@ export function CollectionCoverage({ meta, slug }: { meta: MetaJson; slug: strin
       </> : <>
         <p className="coverage-headline"><strong>{estimate.source === 'reported' ? `${omitted?.toLocaleString()} missing judgments reported` : estimate.source === 'estimate' ? `${omitted?.toLocaleString()} judgments short of the spec total (estimate)` : 'Omitted sample count unavailable'}</strong></p>
         {estimate.exported !== null && <p>{estimate.exported.toLocaleString()} judgments in the published analysis{estimate.expected !== null ? `; ${estimate.expected.toLocaleString()} expected from the spec` : ''}.</p>}
-        <p className="card-caption">{estimate.source === 'estimate' ? 'A row-count estimate, not a verified failure count. Matching totals do not prove every planned judgment succeeded.' : estimate.source === 'reported' ? 'Reported by the run metadata. Individual omitted samples have not been published.' : 'This run has no verified omission report. Missing information does not mean zero failures.'} {estimate.inconsistent ? 'The totals differ from a single-pass plan; an extended run needs its original assignments to verify coverage.' : ''}</p>
+        <p className="card-caption">{estimate.source === 'estimate' ? 'This is estimated from row counts, not a checked list of failures. Even when the totals match, some planned judgments could still have failed.' : estimate.source === 'reported' ? 'Taken from the run’s metadata. The missing samples themselves haven’t been published.' : 'This run didn’t publish a report of missing judgments, so there may be failures we can’t see.'} {estimate.inconsistent ? 'The totals don’t match a single pass over the plan. The run was probably extended, and checking what’s missing would need its original assignments.' : ''}</p>
       </>}
-      {additionalShortfall && <p className="coverage-warning-text">The spec-based estimate is {estimate.omitted?.toLocaleString()} missing judgments overall. Some may be absent from the published log; the table only covers logged omissions.</p>}
-      {estimate.partial && <p className="coverage-warning-text">The collection is marked partial.</p>}
-      {warning && <p className="coverage-warning-text">Rankings and transcripts may represent only the successful subset.</p>}
-      {state.error && <p role="status">The omission report could not be loaded. {estimate.source !== 'unknown' ? 'Showing metadata-based information instead.' : 'Failure details remain unavailable.'}</p>}
+      {additionalShortfall && <p className="coverage-warning-text">Going by the spec, about {estimate.omitted?.toLocaleString()} judgments are missing overall. Some may never have made it into the published log, and the table below only lists the ones that did.</p>}
+      {estimate.partial && <p className="coverage-warning-text">This collection is marked as partial.</p>}
+      {warning && <p className="coverage-warning-text">Rankings and transcripts may only cover the judgments that succeeded.</p>}
+      {state.error && <p role="status">Couldn’t load the report of missing samples. {estimate.source !== 'unknown' ? 'Showing what the run’s metadata says instead.' : 'Details about the failures aren’t available.'}</p>}
       <div className="coverage-actions">
-        {inspectURL && <a className="tx-btn" href={inspectURL} target="_blank" rel="noreferrer">Inspect sample details →</a>}
+        {inspectURL && <a className="tx-btn" href={inspectURL} target="_blank" rel="noreferrer">See sample details →</a>}
         {url && report && <a className="tx-btn" href={url} target="_blank" rel="noreferrer">Download omission report</a>}
       </div>
       {omissions.length > 0 && <details className="coverage-details">
@@ -67,7 +67,7 @@ export function CollectionCoverage({ meta, slug }: { meta: MetaJson; slug: strin
           <tbody>{filtered.slice(0, limit).map((row, index) => <tr key={`${row.sample_id}-${index}`}>
             <td><details><summary>{row.scenario_index ?? 'Unknown'} · {row.sample_id}</summary><p className="coverage-scenario">{row.scenario || 'Scenario text unavailable.'}</p></details></td>
             <td>{row.judge}</td><td>{row.models.join(', ')}</td>
-            <td className="coverage-reason">{row.reason === 'sample_error' ? row.error || 'Sample failed; no error message recorded.' : 'Not present in the export; no sample error recorded.'}</td>
+            <td className="coverage-reason">{row.reason === 'sample_error' ? row.error || 'Sample failed; no error message recorded.' : 'Missing from the export, with no error recorded.'}</td>
           </tr>)}</tbody>
         </table></div>
         {filtered.length > limit && <button className="tx-btn" onClick={() => setLimit(n => n + 40)}>Show more omitted samples</button>}

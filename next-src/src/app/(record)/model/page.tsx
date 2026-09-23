@@ -423,8 +423,8 @@ function HyperparamCard({ meta }: { meta: MetaJson }) {
     <div className="card">
       <h2>Evaluation configuration</h2>
       <div className="card-caption">
-        From the most recent evaluation run. Older runs may differ — click through to any run for full
-        spec.
+        Taken from the most recent run. Older runs may have used different settings, so open a run
+        to see exactly how it was set up.
       </div>
       <div className="metrics-grid">
         {items.map((i) => (

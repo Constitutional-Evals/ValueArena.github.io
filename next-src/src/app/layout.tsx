@@ -21,7 +21,7 @@ const jetbrainsMono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://valuearena.github.io'),
-  ...pageMetadata('ValueArena', 'EigenBench measures how language models express different values, with published rankings, comparisons across constitutions, and the responses and judgments behind each evaluation.'),
+  ...pageMetadata('ValueArena', 'EigenBench scores language models on how well their answers fit a written set of values, which we call a constitution. Browse the rankings, compare models across constitutions, and read the actual responses and judgments behind every score.'),
   icons: {
     icon: [
       { url: '/favicon.ico', sizes: 'any' },

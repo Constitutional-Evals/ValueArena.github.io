@@ -39,7 +39,7 @@ export function HomeRanking() {
           <span className="ranking-score">{row.elo_mean.toFixed(1)}</span>
         </a>; })}
       </div>
-      <p className="home-plot-caption">Points show mean Elo; lines show published 95% intervals where available. Each constitution can show a different model panel. Select a model to read its judgments.</p>
+      <p className="home-plot-caption">Dots are mean Elo and lines are 95% intervals, where the run published them. Each constitution may have a different set of models. Click a model to read its judgments.</p>
       <div className="home-plot-source"><a href={`/run/?slug=${encodeURIComponent(current.run.slug)}`}>Run & coverage: {current.run.name || current.run.slug} ↗</a><a href={`/explore/?view=ranking&x=${encodeURIComponent(current.run.slug)}`}>See all {current.rows.length} models →</a></div>
     </div>}
   </div>;

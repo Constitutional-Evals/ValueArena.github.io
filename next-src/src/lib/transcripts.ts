@@ -114,7 +114,7 @@ export class JsonlWindowReader {
       if (out.records.length === 0 && !this.done) {
         if (size >= MAX_WINDOW_BYTES) {
           throw new Error(
-            `No complete record found in ${Math.round(size / 1024)} KB — the file may not be newline-delimited JSON.`
+            `Couldn’t find a complete record in a ${Math.round(size / 1024)} KB window. The file may not be newline-delimited JSON.`
           );
         }
         size = Math.min(size * 2, MAX_WINDOW_BYTES);

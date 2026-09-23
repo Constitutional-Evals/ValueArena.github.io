@@ -92,7 +92,7 @@ export function Chat({ mainContent }: ChatProps = {}) {
 
   const handleStart = useCallback(() => {
     if (!apiKey.trim()) {
-      flashToast('Please enter your OpenRouter API key to start chatting.', 'warning');
+      flashToast('Add your OpenRouter API key to start chatting.', 'warning');
       return;
     }
     try {
@@ -364,7 +364,7 @@ export function Chat({ mainContent }: ChatProps = {}) {
           </button>
         </div>
         <div className="chat-disclaimer">
-          Inputs are processed by third-party AI and responses may be inaccurate.
+          Your messages go to third-party models through OpenRouter, and their answers can be wrong.
         </div>
       </div>
 
@@ -538,7 +538,7 @@ function SetupScreen({
       <div className="chat-setup-hero">
         <div className="hero-text">
           <h2>Compare models</h2>
-          <p>One prompt, two responses. Choose the model that best meets your criteria.</p>
+          <p>Send one prompt to two models, then vote for the answer that better fits the constitution.</p>
         </div>
       </div>
 
@@ -650,7 +650,7 @@ function SetupScreen({
                 {showKey ? 'hide' : 'show'}
               </button>
             </div>
-            <div className="api-key-hint">Stored locally. Never sent to our servers.</div>
+            <div className="api-key-hint">Saved in your browser and sent only to OpenRouter, never to us.</div>
           </div>
 
           <button type="button" className="battle-start-btn" onClick={onStart}>
@@ -786,7 +786,7 @@ async function fetchStream(
       res.status === 401
         ? 'Invalid API key'
         : res.status === 429
-        ? 'Rate limited — try again shortly'
+        ? 'Too many requests. Try again in a moment.'
         : `API request failed (${res.status})`;
     throw new Error(detail ? `${base}: ${detail}` : base);
   }

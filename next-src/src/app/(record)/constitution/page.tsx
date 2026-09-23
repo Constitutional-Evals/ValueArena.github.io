@@ -83,7 +83,7 @@ export default function ConstitutionPage() {
     );
 
   const label = constLabel(state.id);
-  const tagline = CONSTITUTION_TAGLINES[state.id] || 'A value dimension evaluated across multiple models.';
+  const tagline = CONSTITUTION_TAGLINES[state.id] || 'A value that several models have been scored on.';
   const criteria = CONSTITUTIONS_DATA[state.id] || [];
 
   // Most-recent appearance per model nick across all runs for this constitution.
@@ -135,8 +135,8 @@ export default function ConstitutionPage() {
       <div className="card">
         <h2>Criteria</h2>
         <div className="card-caption">
-          Each criterion names a preference the judge applies when comparing two responses. Articles
-          are ranked by position, not importance — the full list is the instruction.
+          Each criterion is something the judge looks for when comparing two answers. They are
+          numbered in order, not by importance, and the judge sees the whole list.
         </div>
         {criteria.length ? (
           <div className="scripture">
