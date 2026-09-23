@@ -41,6 +41,7 @@ export function Header() {
       <nav className="va-nav" aria-label="Main navigation">
         <a href="/" aria-current={pathname === '/' ? 'page' : undefined}>Home</a>
         <a href="/research/" aria-current={pathname.startsWith('/research') ? 'page' : undefined}>Research</a>
+        <a href="/leaderboard/" aria-current={pathname.startsWith('/leaderboard') ? 'page' : undefined}>Leaderboard</a>
         <a href="/explore/" aria-current={pathname.startsWith('/explore') ? 'page' : undefined}>Explore</a>
         <a href="/experiments/" aria-current={pathname.startsWith('/experiments') ? 'page' : undefined}>Experiments</a>
         <button
