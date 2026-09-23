@@ -6,7 +6,7 @@ export default function ResearchPage() {
 
   return <div className="research-home story-home">
     <section className="research-intro art-section-intro" aria-labelledby="home-title">
-      <img className="section-pixel-art" src="/assets/art/character-plant.webp" width="256" height="256" alt="" aria-hidden="true" />
+      <img className="section-pixel-art" src="/assets/art/character-side-effects.webp" width="256" height="256" alt="" aria-hidden="true" />
       <p className="research-eyebrow">LAISR Lab · Character-training research</p>
       <h1 id="home-title">Side effects of character training</h1>
       <p className="research-deck">Language models can be trained to be more loving, humorous, or poetic. We study how those traits take hold, how they interact, and the side effects they leave behind.</p>
