@@ -434,3 +434,17 @@ a:focus-visible, button:focus-visible, summary:focus-visible, select:focus-visib
 }
 
 .paper-list .paper-entry:first-child { border-top: 0; }
+
+.evaluation-page { max-width: 850px; }
+.evaluation-form { display: grid; gap: 24px; margin: 28px 0 48px; }
+.evaluation-form > label { display: grid; gap: 8px; font-size: 14px; }
+.evaluation-form input:not([type='checkbox']), .evaluation-form textarea, .evaluation-form select { width: 100%; padding: 12px; border: 1px solid var(--border); background: var(--bg-elevated); color: var(--text); border-radius: 4px; font: inherit; }
+.evaluation-form textarea { resize: vertical; }
+.evaluation-form label > span { font-size: 12px; color: var(--text-muted); }
+.evaluation-form fieldset { padding: 16px; border: 1px solid var(--border); }
+.evaluation-model { display: flex; gap: 10px; align-items: center; padding: 8px 0; }
+.evaluation-form > button { justify-self: start; }
+.evaluation-form button:disabled { opacity: .5; cursor: not-allowed; }
+.evaluation-notice { padding: 16px; border-left: 2px solid var(--accent); background: var(--bg-elevated); margin: 16px 0; }
+.evaluation-account, .evaluation-jobs article { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 16px; padding: 18px 0; border-bottom: 1px solid var(--border); }
+.evaluation-jobs p { font-size: 13px; color: var(--text-muted); margin-top: 8px; }

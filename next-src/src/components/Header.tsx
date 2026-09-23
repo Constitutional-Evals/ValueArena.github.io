@@ -44,6 +44,7 @@ export function Header() {
         <a href="/leaderboard/" aria-current={pathname.startsWith('/leaderboard') ? 'page' : undefined}>Leaderboard</a>
         <a href="/explore/" aria-current={pathname.startsWith('/explore') ? 'page' : undefined}>Explore</a>
         <a href="/experiments/" aria-current={pathname.startsWith('/experiments') ? 'page' : undefined}>Experiments</a>
+        {process.env.NEXT_PUBLIC_EVALUATION_API_URL && <a href="/evaluate/" aria-current={pathname.startsWith('/evaluate') ? 'page' : undefined}>Run evaluation</a>}
         <button
           type="button"
           onClick={toggle}

@@ -12,15 +12,16 @@
     "test": "node --experimental-strip-types --test tests/*.test.mjs"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.117.1",
+    "katex": "^0.16.11",
     "next": "16.2.6",
     "react": "19.2.0",
     "react-dom": "19.2.0",
-    "recharts": "^2.13.3",
-    "katex": "^0.16.11"
+    "recharts": "^2.13.3"
   },
   "devDependencies": {
-    "@types/node": "^20.14.0",
     "@types/katex": "^0.16.7",
+    "@types/node": "^20.14.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "autoprefixer": "^10.4.20",

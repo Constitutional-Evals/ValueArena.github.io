@@ -1,0 +1,133 @@
+import math
+import time
+from contextlib import contextmanager
+from uuid import uuid4
+
+from sqlalchemy import (BigInteger, Boolean, Column, Integer, JSON, MetaData, String,
+                        Table, Text, UniqueConstraint, create_engine, event, select, update)
+
+metadata = MetaData()
+accounts = Table('va_accounts', metadata,
+    Column('user_id', String(36), primary_key=True),
+    Column('credits', Integer, nullable=False, default=0),
+    Column('enabled', Boolean, nullable=False, default=True))
+jobs = Table('va_jobs', metadata,
+    Column('id', String(36), primary_key=True), Column('user_id', String(36), nullable=False, index=True),
+    Column('idempotency_key', String(128), nullable=False), Column('request_hash', String(64), nullable=False),
+    Column('config', JSON, nullable=False), Column('state', String(24), nullable=False),
+    Column('stage', String(24), nullable=False, default='queued'),
+    Column('created_at', BigInteger, nullable=False), Column('started_at', BigInteger),
+    Column('heartbeat_at', BigInteger), Column('finished_at', BigInteger),
+    Column('pod_id', String(128)), Column('artifact', Text), Column('error_code', String(64)),
+    Column('reserved_credits', Integer, nullable=False), Column('charged_credits', Integer),
+    Column('cleanup_done', Boolean, nullable=False, default=False),
+    UniqueConstraint('user_id', 'idempotency_key'))
+ledger = Table('va_credit_ledger', metadata,
+    Column('id', String(36), primary_key=True), Column('user_id', String(36), nullable=False),
+    Column('job_id', String(36)), Column('delta', Integer, nullable=False),
+    Column('reason', String(32), nullable=False), Column('created_at', BigInteger, nullable=False))
+ACTIVE = ('provisioning', 'running')
+TERMINAL = ('succeeded', 'failed', 'cancelled')
+
+
+class Conflict(Exception): pass
+class Forbidden(Exception): pass
+
+
+class Store:
+    def __init__(self, url):
+        self.engine = create_engine(url, pool_pre_ping=True)
+        if self.engine.dialect.name == 'sqlite':
+            @event.listens_for(self.engine, 'connect')
+            def sqlite_connect(dbapi, _):
+                dbapi.isolation_level = None
+            @event.listens_for(self.engine, 'begin')
+            def sqlite_begin(conn):
+                conn.exec_driver_sql('BEGIN IMMEDIATE')
+
+    def initialize(self):
+        metadata.create_all(self.engine)
+        if self.engine.dialect.name == 'postgresql':
+            with self.engine.begin() as c:
+                for table in (accounts, jobs, ledger):
+                    c.exec_driver_sql(f'ALTER TABLE {table.name} ENABLE ROW LEVEL SECURITY')
+                    c.exec_driver_sql(f'REVOKE ALL ON {table.name} FROM PUBLIC, anon, authenticated')
+
+    @contextmanager
+    def scheduler_lock(self):
+        # Requires a direct/session-mode Postgres connection, not transaction pooling.
+        with self.engine.connect() as c:
+            postgres = self.engine.dialect.name == 'postgresql'
+            locked = not postgres or c.exec_driver_sql('SELECT pg_try_advisory_lock(82819401)').scalar()
+            try:
+                yield locked
+            finally:
+                if postgres and locked:
+                    c.exec_driver_sql('SELECT pg_advisory_unlock(82819401)')
+
+    def grant(self, user_id, amount):
+        if amount <= 0: raise ValueError('Credits must be positive')
+        with self.engine.begin() as c:
+            row = c.execute(select(accounts).where(accounts.c.user_id == user_id).with_for_update()).mappings().first()
+            if row:
+                c.execute(update(accounts).where(accounts.c.user_id == user_id).values(credits=row['credits'] + amount))
+            else:
+                c.execute(accounts.insert().values(user_id=user_id, credits=amount))
+            c.execute(ledger.insert().values(id=str(uuid4()), user_id=user_id, delta=amount, reason='grant', created_at=int(time.time())))
+
+    def balance(self, user_id):
+        with self.engine.connect() as c:
+            row = c.execute(select(accounts).where(accounts.c.user_id == user_id)).mappings().first()
+            return dict(row) if row else {'credits': 0, 'enabled': False}
+
+    def submit(self, user_id, key, digest, config):
+        with self.engine.begin() as c:
+            account = c.execute(select(accounts).where(accounts.c.user_id == user_id).with_for_update()).mappings().first()
+            if not account or not account['enabled']: raise Forbidden('Account is not enabled for evaluations')
+            prior = c.execute(select(jobs).where(jobs.c.user_id == user_id, jobs.c.idempotency_key == key)).mappings().first()
+            if prior:
+                if prior['request_hash'] != digest: raise Conflict('Idempotency key already used for another request')
+                return dict(prior)
+            outstanding = c.execute(select(jobs.c.id).where(jobs.c.user_id == user_id, jobs.c.state.in_(('queued', *ACTIVE)))).all()
+            if len(outstanding) >= 2: raise Conflict('At most two outstanding evaluations per user')
+            reserve = config['max_runtime_seconds']
+            if account['credits'] < reserve: raise Forbidden('Insufficient execution credits')
+            job_id = str(uuid4()); now = int(time.time())
+            c.execute(update(accounts).where(accounts.c.user_id == user_id).values(credits=account['credits'] - reserve))
+            c.execute(jobs.insert().values(id=job_id, user_id=user_id, idempotency_key=key, request_hash=digest,
+                config=config, state='queued', created_at=now, reserved_credits=reserve))
+            c.execute(ledger.insert().values(id=str(uuid4()), user_id=user_id, job_id=job_id, delta=-reserve, reason='reserve', created_at=now))
+            return dict(c.execute(select(jobs).where(jobs.c.id == job_id)).mappings().one())
+
+    def get(self, job_id):
+        with self.engine.connect() as c:
+            row = c.execute(select(jobs).where(jobs.c.id == job_id)).mappings().first()
+            return dict(row) if row else None
+
+    def list(self, user_id=None):
+        query = select(jobs).order_by(jobs.c.created_at.desc())
+        if user_id is not None: query = query.where(jobs.c.user_id == user_id).limit(100)
+        with self.engine.connect() as c:
+            return [dict(row) for row in c.execute(query).mappings()]
+
+    def patch(self, job_id, allowed_states, **values):
+        with self.engine.begin() as c:
+            return c.execute(update(jobs).where(jobs.c.id == job_id, jobs.c.state.in_(allowed_states)).values(**values)).rowcount > 0
+
+    def finish(self, job_id, state, error_code=None):
+        if state not in TERMINAL: raise ValueError('Invalid terminal state')
+        return self.patch(job_id, ('queued', *ACTIVE), state=state, finished_at=int(time.time()), error_code=error_code)
+
+    def settle(self, job_id):
+        # Only after pod deletion is confirmed. Lock account before job (same order as submit).
+        initial = self.get(job_id)
+        if not initial: return
+        with self.engine.begin() as c:
+            account = c.execute(select(accounts).where(accounts.c.user_id == initial['user_id']).with_for_update()).mappings().one()
+            job = c.execute(select(jobs).where(jobs.c.id == job_id).with_for_update()).mappings().one()
+            if job['state'] not in TERMINAL or job['charged_credits'] is not None: return
+            used = 0 if job['started_at'] is None else min(job['reserved_credits'], max(0, math.ceil(time.time()-job['started_at'])))
+            refund = job['reserved_credits'] - used
+            c.execute(update(accounts).where(accounts.c.user_id == job['user_id']).values(credits=account['credits']+refund))
+            c.execute(update(jobs).where(jobs.c.id == job_id).values(charged_credits=used, cleanup_done=True))
+            c.execute(ledger.insert().values(id=str(uuid4()), user_id=job['user_id'], job_id=job_id, delta=refund, reason='release', created_at=int(time.time())))

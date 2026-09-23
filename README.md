@@ -127,3 +127,11 @@ aggregate. LAISR Lab attribution appears in the introduction and footer.
 The main homepage introduces ValueArena/EigenBench, with a compact live ranking
 chart and recent experiments. Research has its own navigation tab. Both use
 Space Grotesk, a warm paper background, and a single-column report layout.
+
+## Hosted evaluations
+
+The optional automatic evaluation service lives in [`backend/`](backend/README.md).
+It supports native EigenBench and Inspect workers, with Supabase authentication
+and private storage, a Railway API/scheduler, and RunPod execution. The
+`/evaluate/` frontend activates once its public service configuration is supplied.
+See the backend guide for deployment, model catalog configuration, and test commands.
