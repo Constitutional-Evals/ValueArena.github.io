@@ -1,0 +1,238 @@
+import json
+import tarfile
+import time
+from pathlib import Path
+from uuid import uuid4
+
+import pytest
+from fastapi import HTTPException
+from fastapi.testclient import TestClient
+from pydantic import ValidationError
+
+from app.api import create_app
+from app.auth import worker_token
+from app.catalog import load_catalog
+from app.config import Settings
+from app.db import Store
+from app.models import EvaluationRequest
+from app.scheduler import tick
+from app.spec import write_spec
+from app.storage import LocalStorage
+from app.worker import run
+
+USER = '11111111-1111-4111-8111-111111111111'
+OTHER = '22222222-2222-4222-8222-222222222222'
+
+
+class Auth:
+    def user(self, token):
+        if token not in (USER, OTHER): raise HTTPException(401, 'Invalid token')
+        return token
+
+
+@pytest.fixture
+def service(tmp_path):
+    catalog = tmp_path/'catalog.json'
+    catalog.write_text(json.dumps({'a': {'label': 'Model A', 'ref': 'org/model-a'}, 'b': {'label': 'Model B', 'ref': 'org/model-b'}}))
+    cfg = Settings(environment='test', worker_secret='x'*40,
+        database_url='sqlite:///'+str(tmp_path/'test.db'), model_catalog_path=catalog,
+        startup_timeout=60, heartbeat_timeout=60, max_artifact_bytes=1024)
+    db = Store(cfg.database_url); db.initialize(); db.grant(USER, 10000); db.grant(OTHER, 10000)
+    client = TestClient(create_app(cfg, db, Auth(), LocalStorage(tmp_path/'objects')))
+    return cfg, db, client
+
+
+def payload(**kwargs):
+    return {'name': 'Test', 'models': ['a', 'b'], 'criteria': ['Be kind'],
+            'scenarios': ['One scenario'], 'max_runtime_seconds': 600, **kwargs}
+
+
+def submit(client, body=None, key='one', user=USER):
+    return client.post('/evaluations', json=body or payload(), headers={'Authorization': 'Bearer '+user, 'Idempotency-Key': key})
+
+
+def worker_headers(cfg, job_id):
+    return {'Authorization': 'Bearer '+worker_token(cfg.worker_secret, job_id)}
+
+
+def test_auth_and_private_results(service):
+    cfg, db, client = service
+    assert client.get('/evaluations').status_code == 401
+    result = submit(client); assert result.status_code == 202
+    job_id = result.json()['id']
+    assert client.get('/evaluations/'+job_id, headers={'Authorization': 'Bearer '+OTHER}).status_code == 404
+    assert client.get('/evaluations', headers={'Authorization': 'Bearer '+OTHER}).json() == []
+    assert client.get('/internal/jobs/'+job_id, headers={'Authorization': 'Bearer '+USER}).status_code == 401
+    assert client.post('/internal/jobs/'+job_id+'/finish', json={'success': True}, headers=worker_headers(cfg, job_id)).status_code == 409
+
+
+def test_idempotency_and_reservation(service):
+    _, db, client = service
+    first = submit(client).json()
+    assert submit(client).json()['id'] == first['id']
+    assert db.balance(USER)['credits'] == 9400
+    assert submit(client, payload(name='Changed')).status_code == 409
+    assert db.balance(USER)['credits'] == 9400
+    assert submit(client, key='two').status_code == 202
+    assert submit(client, key='three').status_code == 409
+
+
+def test_credits_and_unknown_models(service):
+    _, db, client = service
+    assert submit(client, payload(max_runtime_seconds=14400)).status_code == 403
+    assert submit(client, payload(models=['a', 'unlisted'])).status_code == 422
+    assert submit(client, payload(engine='shell')).status_code == 422
+    assert submit(client, payload(spec='import os')).status_code == 422
+    assert submit(client, payload(scenarios=['same', 'same'])).status_code == 422
+    assert db.balance(USER)['credits'] == 10000
+
+
+@pytest.mark.parametrize('engine', ['native', 'inspect'])
+def test_engine_snapshot_and_safe_spec(service, tmp_path, engine):
+    _, db, client = service
+    name = "quote'; __import__('os').system('false') #"
+    result = submit(client, payload(engine=engine, name=name)).json()
+    config = db.get(result['id'])['config']
+    spec_path = write_spec(config, tmp_path/'run')
+    scope = {}; exec(spec_path.read_text(), scope)
+    spec = scope['RUN_SPEC']
+    assert spec['name'] == name
+    assert config['engine'] == engine
+    assert spec['models'] == {'a': 'org/model-a', 'b': 'org/model-b'}
+    assert spec['collection']['generation']['reflection']['max_tokens'] == 2048
+    assert spec['collection']['inspect']['cache'] is False
+    assert spec['upload']['enabled'] is False
+    assert not spec['training'].get('allow_missing', False)
+
+
+def test_cancellation_is_idempotent(service):
+    _, db, client = service
+    job_id = submit(client).json()['id']
+    for _ in range(2):
+        r = client.post('/evaluations/'+job_id+'/cancel', headers={'Authorization': 'Bearer '+USER})
+        assert r.json()['state'] == 'cancelled'
+    assert db.balance(USER)['credits'] == 10000
+    assert db.get(job_id)['charged_credits'] == 0
+
+
+class Pods:
+    def __init__(self): self.items = []; self.created = []; self.deleted = []; self.uncertain = False
+    @staticmethod
+    def name(job_id): return 'valuearena-'+job_id
+    def list(self): return self.items.copy()
+    def create(self, job):
+        pod = {'id': 'pod-'+job['id'], 'name': self.name(job['id'])}
+        self.items.append(pod); self.created.append(job['id'])
+        if self.uncertain: raise TimeoutError()
+        return pod['id']
+    def delete(self, pod_id):
+        self.deleted.append(pod_id); self.items = [p for p in self.items if p['id'] != pod_id]
+
+
+def test_scheduler_recovers_uncertain_create_without_duplicate(service):
+    cfg, db, client = service
+    job_id = submit(client).json()['id']; pods = Pods(); pods.uncertain = True
+    now = int(time.time())
+    tick(db, pods, cfg, now); tick(db, pods, cfg, now+10)
+    assert len(pods.created) == 1
+    assert db.get(job_id)['pod_id'] == 'pod-'+job_id
+    db.finish(job_id, 'cancelled')
+    tick(db, pods, cfg, now+11); tick(db, pods, cfg, now+12)
+    assert not pods.items
+    assert db.get(job_id)['cleanup_done']
+    assert db.get(job_id)['charged_credits'] is not None
+
+
+def test_scheduler_capacity_and_timeout(service):
+    cfg, db, client = service
+    first = submit(client).json()['id']; submit(client, key='two')
+    pods = Pods(); now = int(time.time())
+    tick(db, pods, cfg, now)
+    assert len(pods.created) == 1
+    tick(db, pods, cfg, now+61)
+    assert db.get(first)['state'] == 'failed'
+    assert db.get(first)['error_code'] == 'worker_start_timeout'
+    assert len(pods.created) == 1  # Slot is occupied until cleanup succeeds.
+    tick(db, pods, cfg, now+62)
+    assert len(pods.created) == 2
+
+
+def test_scheduler_cleanup_failure_does_not_release_slot(service):
+    cfg, db, client = service
+    job_id = submit(client).json()['id']; submit(client, key='two')
+    pods = Pods(); tick(db, pods, cfg)
+    db.finish(job_id, 'failed')
+    def fail(_): raise OSError('provider unavailable')
+    pods.delete = fail
+    with pytest.raises(OSError): tick(db, pods, cfg)
+    assert len(pods.created) == 1
+    assert db.get(job_id)['charged_credits'] is None
+
+
+def test_upload_owner_and_finish_order(service):
+    cfg, db, client = service
+    job_id = submit(client).json()['id']; other_job = submit(client, user=OTHER).json()['id']
+    tick(db, Pods(), cfg)
+    headers = worker_headers(cfg, job_id); root = '/internal/jobs/'+job_id
+    assert client.post(root+'/heartbeat', json={'stage': 'collecting'}, headers=headers).status_code == 200
+    assert client.put('/internal/jobs/'+other_job+'/artifacts', content=b'bytes', headers=headers).status_code == 401
+    assert client.post(root+'/finish', json={'success': True}, headers=headers).status_code == 409
+    assert client.put(root+'/artifacts', content=b'x'*1025, headers=headers).status_code == 413
+    assert client.put(root+'/artifacts', content=b'archive', headers=headers).status_code == 200
+    assert client.post(root+'/finish', json={'success': True}, headers=headers).json()['state'] == 'succeeded'
+    assert client.post(root+'/heartbeat', json={'stage': 'collecting'}, headers=headers).status_code == 409
+    assert client.get('/evaluations/'+job_id+'/artifacts', headers={'Authorization': 'Bearer '+OTHER}).status_code == 404
+    assert client.get('/evaluations/'+job_id+'/artifacts', headers={'Authorization': 'Bearer '+USER}).content == b'archive'
+
+
+@pytest.mark.parametrize('engine', ['native', 'inspect'])
+@pytest.mark.parametrize('fail', [False, True])
+def test_worker_lifecycle(service, tmp_path, engine, fail):
+    cfg, db, api = service
+    job_id = submit(api, payload(engine=engine)).json()['id']; tick(db, Pods(), cfg)
+    cfg.max_artifact_bytes = 10_000_000
+    class Client:
+        def get(self):
+            job = db.get(job_id)
+            return {'id': job_id, 'config': job['config'], 'deadline_at': time.time()+600, 'max_artifact_bytes': 10_000_000}
+        def post(self, endpoint, data):
+            response = api.post(f'/internal/jobs/{job_id}/{endpoint}', json=data, headers=worker_headers(cfg, job_id))
+            response.raise_for_status(); return response.json()
+        def upload(self, path):
+            # Real private storage semantics, no external services or GPU charges.
+            with tarfile.open(path) as archive:
+                assert 'spec.py' in archive.getnames()
+                assert 'request.json' in archive.getnames()
+            db.patch(job_id, ('running',), artifact='test/result.tar.gz')
+    phases = []
+    def execute(command, directory, abort, deadline):
+        assert command[3] == engine
+        phase = command[4]; phases.append(phase)
+        if fail: raise RuntimeError('invalid ratings')
+        if phase == 'analyzing':
+            (directory/'analysis').mkdir(); (directory/'analysis/summary.json').write_text('{}')
+    code = run(Client(), tmp_path/'work', execute)
+    assert code == (1 if fail else 0)
+    assert db.get(job_id)['state'] == ('failed' if fail else 'succeeded')
+    assert phases == (['collecting'] if fail else ['collecting', 'analyzing'])
+
+
+def test_catalog_rejects_unpinned_local_models(tmp_path):
+    path = tmp_path/'catalog.json'
+    path.write_text(json.dumps({'a': {'label': 'local', 'ref': {'provider': 'hf_local', 'kind': 'base', 'repo_id': 'owner/model', 'revision': 'main'}}}))
+    with pytest.raises(ValueError, match='Pin local'): load_catalog(path)
+
+
+def test_production_never_uses_local_test_database():
+    with pytest.raises(ValidationError): Settings(environment='production', worker_secret='x'*40, database_url='sqlite://')
+
+
+def test_storage_uses_new_secret_key_as_apikey_only(service):
+    from app.storage import SupabaseStorage
+    cfg, _, _ = service
+    cfg.supabase_url = 'https://example.supabase.co'
+    cfg.supabase_secret_key = 'sb_secret_test'
+    storage = SupabaseStorage(cfg)
+    assert storage.headers == {'apikey': 'sb_secret_test'}
+    cfg.supabase_secret_key = 'legacy.jwt.value'
+    assert SupabaseStorage(cfg).headers['Authorization'] == 'Bearer legacy.jwt.value'

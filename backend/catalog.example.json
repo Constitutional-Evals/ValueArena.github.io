@@ -1,0 +1,4 @@
+{
+  "gpt-4-1": {"label": "GPT-4.1", "ref": "openai/gpt-4.1"},
+  "claude-sonnet-4": {"label": "Claude Sonnet 4", "ref": "anthropic/claude-sonnet-4"}
+}
