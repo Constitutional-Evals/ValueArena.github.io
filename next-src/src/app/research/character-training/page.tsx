@@ -9,7 +9,7 @@ export default function ResearchPage() {
       <img className="section-pixel-art" src="/assets/art/character-side-effects.webp" width="256" height="256" alt="" aria-hidden="true" />
       <a className="paper-back" href="/research/">← All research</a>
       <h1 id="home-title">Side effects of character training</h1>
-      <p className="research-deck">Language models can be trained to be more loving, humorous, or poetic. We study how those traits take hold, how they interact, and the side effects they leave behind.</p>
+      <p className="research-deck">You can train a language model to be more loving, funnier or more poetic. We looked at how well those traits stick, how they interact with each other, and what else changes along the way.</p>
       <div className="research-links"><a className="research-primary" href="#side-effects">See the findings ↓</a><a href="/explore/">Open the explorer ↗</a></div>
     </section>
     <ResearchStory />
@@ -20,4 +20,4 @@ export default function ResearchPage() {
   </div>;
 }
 
-export const metadata = pageMetadata("Character Training Research \u2014 ValueArena", "LAISR Lab research on character training, interactions between model traits, and cross-constitution side effects.", "/research/character-training/");
+export const metadata = pageMetadata("Character Training Research \u2014 ValueArena", "LAISR Lab research on character training: how trained traits interact, and the side effects they have on other values.", "/research/character-training/");

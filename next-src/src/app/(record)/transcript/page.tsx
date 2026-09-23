@@ -451,9 +451,8 @@ export default function TranscriptPage() {
 
       {jumpMiss ? (
         <div className="tx-warn tx-warn-soft">
-          No judgment is numbered {jump}. Numbers are line numbers in evaluations.jsonl, so a
-          number past the end of the file, or one on a line that holds no judgment, has no match —
-          the nearest judgment after it is selected instead.
+          There’s no judgment #{jump}. The numbers are line numbers in evaluations.jsonl, and not
+          every line holds a judgment, so the next judgment after that line is selected instead.
         </div>
       ) : null}
 
@@ -474,7 +473,7 @@ export default function TranscriptPage() {
           {filtered.length === 0 ? (
             <p className="tx-empty">
               Nothing matches these filters
-              {scanning ? ' yet — the run is still being read.' : ' in this run.'}
+              {scanning ? ' yet. The run is still loading.' : ' in this run.'}
             </p>
           ) : null}
 
@@ -498,8 +497,8 @@ export default function TranscriptPage() {
             ) : (
               <span className="tx-foot-note">
                 {scanning
-                  ? `End of what has been read — still reading (${percentRead(bytesRead, totalBytes)}).`
-                  : `End of the list — all ${filtered.length.toLocaleString()} matches shown.`}
+                  ? `That’s everything loaded so far. Still reading (${percentRead(bytesRead, totalBytes)}).`
+                  : `That’s all ${filtered.length.toLocaleString()} matches.`}
               </span>
             )}
           </div>

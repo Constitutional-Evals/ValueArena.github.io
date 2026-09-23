@@ -1,7 +1,7 @@
 import { pageMetadata } from '@/lib/metadata';
 import { HomeRanking } from '@/components/HomeRanking';
 
-export const metadata = pageMetadata('EigenBench — ValueArena', 'A comparative behavioral measure of value alignment, using model responses and collective judgments.', '/research/eigenbench/');
+export const metadata = pageMetadata('EigenBench — ValueArena', 'A way to compare language models on a written set of values, using their answers and each other’s judgments.', '/research/eigenbench/');
 
 export default function EigenBenchPaper() {
   return <div className="research-home story-home">
@@ -14,18 +14,18 @@ export default function EigenBenchPaper() {
       <div className="research-links"><a className="research-primary" href="https://arxiv.org/abs/2509.01938">Read the paper ↗</a><a href="/explore/">Published results →</a></div>
     </section>
     <section className="story-section">
-      <div className="story-copy"><h2>Values expressed through behavior</h2><p>EigenBench compares a panel of language models against a written constitution. Models answer shared scenarios and judge one another’s responses. EigenTrust aggregates these judgments into scores reflecting the panel’s weighted consensus.</p></div>
+      <div className="story-copy"><h2>Judging values by behavior</h2><p>EigenBench starts with a group of language models and a written constitution. The models answer the same scenarios, then judge one another’s answers. EigenTrust combines the judgments into scores, giving more weight to judges that the rest of the group rates highly.</p></div>
       <ol className="story-protocol" aria-label="Evaluation process">
-        <li><span>01</span><strong>Constitution</strong><p>A written value system defines the evaluation criteria.</p></li>
-        <li><span>02</span><strong>Responses and judgments</strong><p>The model panel answers scenarios and evaluates other models’ answers.</p></li>
-        <li><span>03</span><strong>Relative scores</strong><p>Peer judgments are combined into a comparative measure of alignment.</p></li>
+        <li><span>01</span><strong>Constitution</strong><p>A short written description of a value sets what the judges look for.</p></li>
+        <li><span>02</span><strong>Responses and judgments</strong><p>Each model answers the scenarios and grades the other models’ answers.</p></li>
+        <li><span>03</span><strong>Relative scores</strong><p>The judgments are combined into scores that rank the models against each other.</p></li>
       </ol>
-      <p className="story-small">The paper evaluates agreement with human judgments and recovery of GPQA rankings without ground-truth labels. <a href="https://arxiv.org/abs/2509.01938">Source: EigenBench paper ↗</a></p>
+      <p className="story-small">The paper checks the scores against human judgments and shows the method can recover GPQA rankings without using the answer key. <a href="https://arxiv.org/abs/2509.01938">Source: EigenBench paper ↗</a></p>
     </section>
     <section className="story-section">
-      <div className="story-copy"><h2>Published evaluations</h2><p>These interactive rankings come from current ValueArena runs; they are not the paper’s original experimental figures.</p></div>
+      <div className="story-copy"><h2>Published evaluations</h2><p>These rankings come from runs published on ValueArena, not from the experiments in the paper.</p></div>
       <HomeRanking />
     </section>
-    <section className="story-closing"><div><h2>Reading the scores</h2><p>Scores describe relative alignment within a model panel and constitution. They do not establish an objective hierarchy of values or a universal safety ranking. The choice of scenarios, criteria, and judges matters.</p><div className="research-links"><a href="/experiments/">Experiments →</a><a href="/compare/">Model responses →</a><a href="/research/character-training/">Character-training study →</a></div></div></section>
+    <section className="story-closing"><div><h2>Reading the scores</h2><p>A score only tells you how a model compares with the other models in the same run, on one constitution. It isn’t an objective ranking of values or a safety rating, and different scenarios, criteria or judges can give different results.</p><div className="research-links"><a href="/experiments/">Experiments →</a><a href="/compare/">Model responses →</a><a href="/research/character-training/">Character-training study →</a></div></div></section>
   </div>;
 }
