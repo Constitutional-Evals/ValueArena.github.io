@@ -43,7 +43,6 @@ export function Header() {
         <a href="/research/" aria-current={pathname.startsWith('/research') ? 'page' : undefined}>Research</a>
         <a href="/explore/" aria-current={pathname.startsWith('/explore') ? 'page' : undefined}>Explore</a>
         <a href="/experiments/" aria-current={pathname.startsWith('/experiments') ? 'page' : undefined}>Experiments</a>
-        <a href="/methodology/" aria-current={pathname.startsWith('/methodology') ? 'page' : undefined}>Methodology</a>
         <button
           type="button"
           onClick={toggle}

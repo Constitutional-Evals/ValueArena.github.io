@@ -40,7 +40,7 @@ export function ResearchStory() {
         <li><span>02</span><strong>A constitution sets the criteria.</strong><p>Other models judge the anonymous responses.</p></li>
         <li><span>03</span><strong>Peer judgments become scores.</strong><p>EigenBench aggregates preferences into a ranking.</p></li>
       </ol>
-      <p className="story-small">ValueArena is the place to explore those scores and read the judgments behind them. <a href="/methodology/">How EigenBench works →</a></p>
+      <p className="story-small">ValueArena is the place to explore those scores and read the judgments behind them. <a href="/research/eigenbench/">How EigenBench works →</a></p>
     </section>
 
     <section className="story-section" id="side-effects">

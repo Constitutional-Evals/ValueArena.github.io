@@ -1,23 +1,22 @@
 import { pageMetadata } from '@/lib/metadata';
+import { papers } from '@/lib/papers';
 
-import { ResearchStory } from '@/components/ResearchStory';
+export const metadata = pageMetadata('Research — ValueArena', 'Papers from LAISR Lab on model values, evaluation, and character training.', '/research/');
 
 export default function ResearchPage() {
-
-  return <div className="research-home story-home">
-    <section className="research-intro art-section-intro" aria-labelledby="home-title">
-      <img className="section-pixel-art" src="/assets/art/character-side-effects.webp" width="256" height="256" alt="" aria-hidden="true" />
-      <p className="research-eyebrow">LAISR Lab · Character-training research</p>
-      <h1 id="home-title">Side effects of character training</h1>
-      <p className="research-deck">Language models can be trained to be more loving, humorous, or poetic. We study how those traits take hold, how they interact, and the side effects they leave behind.</p>
-      <div className="research-links"><a className="research-primary" href="#side-effects">See the findings ↓</a><a href="/explore/">Open the explorer ↗</a></div>
-    </section>
-    <ResearchStory />
-    <footer className="research-footer">
-      <span>LAISR Lab</span>
-      <div><a href="https://github.com/ValueArena/ValueArena.github.io">Code ↗</a><a href="https://huggingface.co/datasets/invi-bhagyesh/ValueArena">Data ↗</a><a href="/leaderboard/">Leaderboard →</a></div>
-    </footer>
+  return <div className="research-index lab-research">
+    <header className="research-page-head"><h1>Research</h1><p>Papers from LAISR Lab on model values, evaluation, and character training.</p></header>
+    <div className="paper-list">
+      {papers.map(paper => <article className="paper-entry" key={paper.slug}>
+        <a className="paper-art-link" href={`/research/${paper.slug}/`} aria-label={paper.title}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={paper.image} width="180" height="180" alt="" />
+        </a>
+        <div><h2><a href={`/research/${paper.slug}/`}>{paper.title}</a></h2>
+          <p className="paper-subtitle">{paper.subtitle}</p><p>{paper.description}</p>
+          <div className="research-links"><a className="research-primary" href={`/research/${paper.slug}/`}>Visual overview →</a>{paper.paper && <a href={paper.paper}>Paper ↗</a>}</div>
+        </div>
+      </article>)}
+    </div>
   </div>;
 }
-
-export const metadata = pageMetadata("Character Training Research \u2014 ValueArena", "LAISR Lab research on character training, interactions between model traits, and cross-constitution side effects.", "/research/");

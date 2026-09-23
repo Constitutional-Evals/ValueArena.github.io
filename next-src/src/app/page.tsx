@@ -25,7 +25,7 @@ export default function HomePage() {
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img className="home-pixel-art" src="/assets/art/model-conversation.webp" width="768" height="507" alt="" aria-hidden="true" />
       <p className="research-deck">EigenBench measures how language models express different values, with published rankings, comparisons across constitutions, and the responses and judgments behind each evaluation.</p>
-      <div className="home-actions"><a className="button-primary" href="/explore/">Explore results <span aria-hidden>↗</span></a><a className="button-secondary" href="/methodology/">How EigenBench works <span aria-hidden>→</span></a></div>
+      <div className="home-actions"><a className="button-primary" href="/explore/">Explore results <span aria-hidden>↗</span></a><a className="button-secondary" href="/research/eigenbench/">How EigenBench works <span aria-hidden>→</span></a></div>
     </section>
     <nav className="story-jump home-contents" aria-label="On this page"><span>Contents</span>{contents.map(([id, title], index) => <a key={id} href={`#${id}`} aria-current={active === id ? 'location' : undefined}><span>{String(index + 1).padStart(2, '0')}</span>{title}</a>)}</nav>
 
@@ -46,7 +46,7 @@ export default function HomePage() {
         <div><dt>Judgments</dt><dd>Judges compare anonymous responses or rate them against the constitution’s criteria.</dd></div>
         <div><dt>Aggregation</dt><dd>EigenTrust uses the pattern of peer judgments to assign weights and relative scores.</dd></div>
       </dl>
-      <div className="arena-method-note"><strong>Why show uncertainty?</strong><p>Scores can change with the sampled scenarios and judgments. Bootstrap intervals help show how precisely a run estimates its rankings.</p><a href="/methodology/">Read the method →</a></div>
+      <div className="arena-method-note"><strong>Why show uncertainty?</strong><p>Scores can change with the sampled scenarios and judgments. Bootstrap intervals help show how precisely a run estimates its rankings.</p><a href="/research/eigenbench/">About EigenBench →</a></div>
     </section>
 
     <section className="story-section" id="evidence">
@@ -58,7 +58,7 @@ export default function HomePage() {
     </section>
 
     <section className="story-closing" id="related-research">
-      <div className="art-section-intro"><img className="section-pixel-art" src="/assets/art/character-side-effects.webp" width="256" height="256" alt="" aria-hidden="true" loading="lazy" /><h2>The side effects of character training</h2><p>Our character-training study uses EigenBench to examine the intended effects and side effects of character training, how prompts interact with trained traits, and what changes across checkpoints.</p><div className="research-links"><a className="research-primary" href="/research/">Read the visual overview →</a></div></div>
+      <div className="art-section-intro"><img className="section-pixel-art" src="/assets/art/character-side-effects.webp" width="256" height="256" alt="" aria-hidden="true" loading="lazy" /><h2>The side effects of character training</h2><p>Our character-training study uses EigenBench to examine the intended effects and side effects of character training, how prompts interact with trained traits, and what changes across checkpoints.</p><div className="research-links"><a className="research-primary" href="/research/character-training/">Read the visual overview →</a></div></div>
     </section>
     <footer className="research-footer"><a href="/research/">Research from LAISR Lab</a><div><a href="https://github.com/ValueArena/ValueArena.github.io">Code ↗</a><a href="https://huggingface.co/datasets/invi-bhagyesh/ValueArena">Data ↗</a><a href="/leaderboard/">Leaderboard →</a></div></footer>
   </div>;

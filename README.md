@@ -110,9 +110,12 @@ marginal, not a joint confidence region.
 
 ## Research overview
 
-The `/research/` tab walks through character-training results from the supplied paper,
-with training/prompting figure switching, a variance-decomposition chart, and
-checkpoint figures. The full live-data controls remain at `/explore/`.
+The `/research/` tab lists LAISR Lab papers. Add entries in
+`next-src/src/lib/papers.ts` and create an overview route for each new paper.
+EigenBench lives at `/research/eigenbench/`; the character-training overview
+lives at `/research/character-training/`, with training/prompting figure switching,
+a variance-decomposition chart, and checkpoint figures. The full live-data
+controls remain at `/explore/`. The outdated Methodology page has been removed.
 
 Paper assets live in `next-src/public/research/character-training/`. Their
 `sources.json` records the source filenames, hashes, snapshot date, and Table 1
