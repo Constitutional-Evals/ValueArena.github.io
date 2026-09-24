@@ -37,7 +37,7 @@ export function Header() {
 
   return (
     <header className="va-header">
-      <a href="/" className="va-brand">
+      <a href="/" className="va-brand va-glass-pill" aria-label="ValueArena home">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img className="laisr-pixel-mark" src="/assets/art/laisr-pixel-mark.webp" width="34" height="34" alt="" />
         <span className="va-lab-name">LAISR Lab</span>
@@ -46,23 +46,25 @@ export function Header() {
           <span>Value</span>Arena
         </span>
       </a>
-      <nav className="va-nav" aria-label="Main navigation">
+      <nav className="va-nav va-glass-pill" aria-label="Main navigation">
         <a href="/" aria-current={pathname === '/' ? 'page' : undefined}>Home</a>
         <a href="/research/" aria-current={pathname.startsWith('/research') ? 'page' : undefined}>Research</a>
         <a href="/leaderboard/" aria-current={pathname.startsWith('/leaderboard') ? 'page' : undefined}>Leaderboard</a>
         <a href="/explore/" aria-current={pathname.startsWith('/explore') ? 'page' : undefined}>Explore</a>
         <a href="/experiments/" aria-current={pathname.startsWith('/experiments') ? 'page' : undefined}>Experiments</a>
-        {process.env.NEXT_PUBLIC_EVALUATION_API_URL && <a href="/evaluate/" aria-current={pathname.startsWith('/evaluate') ? 'page' : undefined}>{loggedIn ? 'Run evaluation' : 'Log in'}</a>}
+      </nav>
+      <div className="va-header-actions">
+        <a className="va-account-link va-glass-pill" href="/evaluate/" aria-current={pathname.startsWith('/evaluate') ? 'page' : undefined}>{loggedIn ? 'Run evaluation' : 'Log in'}</a>
         <button
           type="button"
           onClick={toggle}
-          className="va-theme-toggle"
+          className="va-theme-toggle va-glass-pill"
           title="Toggle theme"
           aria-label="Toggle theme"
         >
           {theme === 'dark' ? '☾' : '☀'}
         </button>
-      </nav>
+      </div>
     </header>
   );
 }
