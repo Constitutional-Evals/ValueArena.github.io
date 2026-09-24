@@ -1,4 +1,4 @@
-export function parseScenarios(text: string): string[] {
+export function parseScenarios(text: string, maximum = 200): string[] {
   const lines = text.replace(/^\uFEFF/, '').split(/\r?\n/);
   const scenarios: string[] = [];
   const seen = new Set<string>();
@@ -13,7 +13,7 @@ export function parseScenarios(text: string): string[] {
     if (seen.has(scenario)) throw new Error(`Line ${index + 1}: duplicate scenario. Each question should appear once.`);
     scenarios.push(scenario); seen.add(scenario);
   }
-  if (!scenarios.length || scenarios.length > 200) throw new Error('Supply between 1 and 200 unique scenarios.');
+  if (!scenarios.length || scenarios.length > maximum) throw new Error(`Supply between 1 and ${maximum} unique scenarios.`);
   if (scenarios.reduce((n, s) => n + s.length, 0) > 400000) throw new Error('Scenario text exceeds 400,000 characters.');
   return scenarios;
 }
