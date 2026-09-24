@@ -5,7 +5,7 @@ export const metadata = pageMetadata('Run an Evaluation — ValueArena', 'Config
 
 export default function EvaluatePage() {
   return <div className="research-index evaluation-page">
-    <header className="research-page-head"><h1>Run an evaluation</h1><p>Choose a model panel, define a constitution, and supply scenarios.</p></header>
+    <header className="research-page-head"><p className="eval-kicker">EigenBench workspace</p><h1>Run an evaluation</h1><p>Evaluate a model panel against a constitution, then explore its responses and judgments.</p></header>
     <EvaluationRunner />
   </div>;
 }

@@ -1,11 +1,19 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { evaluationAuth } from '@/lib/evaluation';
 import { usePathname } from 'next/navigation';
 
 export function Header() {
   const [theme, setTheme] = useState<'dark' | 'light'>('light');
 
+  const [loggedIn, setLoggedIn] = useState(false);
+  useEffect(() => {
+    const auth = evaluationAuth(); if (!auth) return;
+    void auth.auth.getSession().then(({ data }) => setLoggedIn(!!data.session));
+    const { data } = auth.auth.onAuthStateChange((_event, session) => setLoggedIn(!!session));
+    return () => data.subscription.unsubscribe();
+  }, []);
   const pathname = usePathname();
   useEffect(() => {
     let saved: 'dark' | 'light' = 'light';
@@ -44,7 +52,7 @@ export function Header() {
         <a href="/leaderboard/" aria-current={pathname.startsWith('/leaderboard') ? 'page' : undefined}>Leaderboard</a>
         <a href="/explore/" aria-current={pathname.startsWith('/explore') ? 'page' : undefined}>Explore</a>
         <a href="/experiments/" aria-current={pathname.startsWith('/experiments') ? 'page' : undefined}>Experiments</a>
-        {process.env.NEXT_PUBLIC_EVALUATION_API_URL && <a href="/evaluate/" aria-current={pathname.startsWith('/evaluate') ? 'page' : undefined}>Run evaluation</a>}
+        {process.env.NEXT_PUBLIC_EVALUATION_API_URL && <a href="/evaluate/" aria-current={pathname.startsWith('/evaluate') ? 'page' : undefined}>{loggedIn ? 'Run evaluation' : 'Log in'}</a>}
         <button
           type="button"
           onClick={toggle}

@@ -1,153 +1,183 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { createClient, type Session } from '@supabase/supabase-js';
+import { useEffect, useRef, useState } from 'react';
+import type { Session } from '@supabase/supabase-js';
+import { evaluationAPI, evaluationAuth, evaluationRequest as request, type EvaluationJob as Job } from '@/lib/evaluation';
+import { CONSTITUTIONS_DATA } from '@/lib/constitutions-data';
+import { parseScenarios } from '@/lib/scenario-upload';
+import { EvaluationLogin } from './EvaluationLogin';
 
-const apiURL = (process.env.NEXT_PUBLIC_EVALUATION_API_URL || '').replace(/\/$/, '');
-const authURL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const authKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || '';
 type Model = { id: string; label: string };
-type Job = { id: string; name: string; state: string; stage: string; engine: string; has_artifacts: boolean; error_code: string | null };
+type CustomModel = { id: string; provider: string; repo_id: string; kind: string; subfolder: string; base_model_id: string };
+const presetNames = Object.keys(CONSTITUTIONS_DATA).sort();
+const label = (s: string) => s.replaceAll('_', ' ').replace(/^./, c => c.toUpperCase());
+const gpuTypes = ['NVIDIA A40', 'NVIDIA RTX A6000', 'NVIDIA GeForce RTX 4090', 'NVIDIA A100 80GB PCIe', 'NVIDIA H100 80GB HBM3'];
+const active = (job: Job) => ['queued', 'provisioning', 'running'].includes(job.state);
 
 export function EvaluationRunner() {
-  const auth = useMemo(() => authURL && authKey ? createClient(authURL, authKey) : null, []);
+  const auth = evaluationAuth();
   const [session, setSession] = useState<Session | null>(null);
-  const [email, setEmail] = useState('');
-  const [notice, setNotice] = useState('');
-  const [error, setError] = useState('');
-  const [models, setModels] = useState<Model[]>([]);
-  const [selected, setSelected] = useState<string[]>([]);
-  const [engine, setEngine] = useState('native');
-  const [name, setName] = useState('');
-  const [criteria, setCriteria] = useState('');
-  const [scenarios, setScenarios] = useState('');
-  const [minutes, setMinutes] = useState(60);
-  const [credits, setCredits] = useState<number | null>(null);
-  const [enabled, setEnabled] = useState(false);
-  const [jobs, setJobs] = useState<Job[]>([]);
-  const [busy, setBusy] = useState(false);
+  const [authReady, setAuthReady] = useState(false);
+  const [notice, setNotice] = useState(''); const [error, setError] = useState('');
+  const [models, setModels] = useState<Model[]>([]); const [directory, setDirectory] = useState<Model[]>([]);
+  const [selected, setSelected] = useState<string[]>([]); const [custom, setCustom] = useState<CustomModel[]>([]);
+  const [provider, setProvider] = useState('openrouter'); const [repo, setRepo] = useState('');
+  const [kind, setKind] = useState('base'); const [base, setBase] = useState(''); const [subfolder, setSubfolder] = useState('');
+  const [engine, setEngine] = useState('native'); const [name, setName] = useState('');
+  const [constitution, setConstitution] = useState('humor');
+  const [criteria, setCriteria] = useState(CONSTITUTIONS_DATA.humor.join('\n'));
+  const [source, setSource] = useState('airiskdilemmas'); const [count, setCount] = useState(200);
+  const [scenarioText, setScenarioText] = useState(''); const [fileName, setFileName] = useState('');
+  const [ownKeys, setOwnKeys] = useState(false); const [orKey, setOrKey] = useState(''); const [rpKey, setRpKey] = useState('');
+  const [gpu, setGPU] = useState(gpuTypes[0]); const [disk, setDisk] = useState(100);
+  const [visibility, setVisibility] = useState('private');
+  const [credits, setCredits] = useState<number | null>(null); const [enabled, setEnabled] = useState(false);
+  const [jobs, setJobs] = useState<Job[]>([]); const [busy, setBusy] = useState(false);
+  const [tab, setTab] = useState<'new' | 'runs' | 'account'>('new');
+  const [username, setUsername] = useState(''); const [password, setPassword] = useState('');
+  const [logId, setLogId] = useState(''); const [logs, setLogs] = useState('');
   const submission = useRef<{ body: string; key: string } | null>(null);
 
   useEffect(() => {
     if (!auth) return;
     let alive = true;
-    void auth.auth.getSession().then(({ data, error }) => {
-      if (alive) { setSession(data.session); if (error) setError(error.message); }
+    void auth.auth.getSession().then(({ data }) => { if (alive) { setSession(data.session); setAuthReady(true); setUsername(data.session?.user.user_metadata.username || ''); } });
+    const { data } = auth.auth.onAuthStateChange((event, next) => {
+      if (!alive) return;
+      setSession(next); setAuthReady(true);
+      if (event === 'PASSWORD_RECOVERY') { setTab('account'); setNotice('Choose a new password below.'); }
+      if (!next) { setOrKey(''); setRpKey(''); setLogs(''); setLogId(''); setJobs([]); submission.current = null; }
     });
-    const { data } = auth.auth.onAuthStateChange((_event, next) => { if (alive) setSession(next); });
     return () => { alive = false; data.subscription.unsubscribe(); };
   }, [auth]);
 
-  async function request(path: string, options: RequestInit = {}) {
-    const { data } = await auth!.auth.getSession();
-    if (!data.session) throw new Error('Please sign in again.');
-    const response = await fetch(apiURL + path, { ...options, headers: {
-      'Content-Type': 'application/json', Authorization: `Bearer ${data.session.access_token}`, ...options.headers,
-    } });
-    if (!response.ok) {
-      const body = await response.json().catch(() => ({}));
-      throw new Error(typeof body.detail === 'string' ? body.detail : `Request failed (${response.status}).`);
-    }
-    return response;
-  }
-
   useEffect(() => {
-    if (!session || !apiURL) { setJobs([]); setCredits(null); setEnabled(false); return; }
-    let alive = true;
-    let pending = false;
+    if (!session || !evaluationAPI) return;
+    let alive = true, pending = false;
     async function refresh() {
-      if (pending) return;
-      pending = true;
+      if (pending) return; pending = true;
       try {
-        const [account, catalog, runs] = await Promise.all([
-          request('/account').then(r => r.json()), request('/models').then(r => r.json()), request('/evaluations').then(r => r.json()),
-        ]);
+        const [account, catalog, runs] = await Promise.all([request('/account').then(r => r.json()), request('/models').then(r => r.json()), request('/evaluations').then(r => r.json())]);
         if (alive) { setCredits(account.credits); setEnabled(account.enabled); setModels(catalog.models); setJobs(runs); }
-      } catch (e) { if (alive) setError((e as Error).message); }
-      finally { pending = false; }
+      } catch (e) { if (alive) setError((e as Error).message); } finally { pending = false; }
     }
     void refresh();
+    void request('/models/openrouter').then(r => r.json()).then(data => { if (alive) setDirectory(data.models); }).catch(() => {});
     const timer = setInterval(refresh, 5000);
     return () => { alive = false; clearInterval(timer); };
-    // The SDK refreshes tokens inside request(); polling restarts on user changes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.user.id]);
 
-  async function login(event: React.FormEvent) {
-    event.preventDefault(); setError(''); setNotice(''); setBusy(true);
-    try {
-      const { error } = await auth!.auth.signInWithOtp({ email, options: { emailRedirectTo: `${location.origin}/evaluate/` } });
-      if (error) throw error;
-      setNotice('Check your email for a sign-in link.');
-    } catch (e) { setError((e as Error).message); }
-    finally { setBusy(false); }
-  }
+  useEffect(() => {
+    if (!logId || !session) return;
+    let alive = true, pending = false;
+    setLogs('');
+    async function refresh() {
+      if (pending) return; pending = true;
+      try { const data = await (await request(`/evaluations/${logId}/logs`)).json(); if (alive) setLogs(data.text || 'Waiting for the worker to start…'); }
+      catch (e) { if (alive) setLogs((e as Error).message); } finally { pending = false; }
+    }
+    void refresh(); const timer = setInterval(refresh, 5000);
+    return () => { alive = false; clearInterval(timer); };
+  }, [logId, session?.user.id]);
 
+  function addModel() {
+    setError('');
+    if (!/^[\w.-]+\/[\w.:-]+$/.test(repo.trim())) { setError('Enter a model ID such as Qwen/Qwen2.5-7B-Instruct or openai/gpt-4.1.'); return; }
+    if (selected.length >= 8) { setError('The panel can contain up to 8 models.'); return; }
+    if (provider === 'huggingface' && kind === 'lora' && !base.trim()) { setError('Enter the LoRA’s base model repository.'); return; }
+    if (custom.some(m => m.provider === provider && m.repo_id === repo.trim() && m.subfolder === subfolder)) { setError('That model is already in your panel.'); return; }
+    const stem = (repo.trim() + (subfolder ? '-' + subfolder.trim() : '')).replace(/[^a-zA-Z0-9_-]/g, '-').slice(0, 55);
+    const id = selected.includes(stem) || models.some(m => m.id === stem) ? `${stem}-${crypto.randomUUID().slice(0, 6)}` : stem;
+    setCustom(items => [...items, { id, provider, repo_id: repo.trim(), kind, subfolder: subfolder.trim(), base_model_id: base.trim() }]);
+    setSelected(ids => [...ids, id]); setRepo(''); setSubfolder(''); setBase('');
+  }
+  async function upload(file?: File) {
+    if (!file) return;
+    setError('');
+    try {
+      if (file.size > 2000000) throw new Error('Choose a JSONL file smaller than 2 MB.');
+      const text = await file.text(); const rows = parseScenarios(text);
+      setScenarioText(text); setFileName(`${file.name} · ${rows.length} scenarios`); setSource('custom');
+    } catch (e) { setError((e as Error).message); }
+  }
   async function submit(event: React.FormEvent) {
     event.preventDefault(); setError(''); setNotice(''); setBusy(true);
     try {
-      const body = JSON.stringify({ name, engine, models: selected,
-        criteria: criteria.split('\n').map(s => s.trim()).filter(Boolean),
-        scenarios: scenarios.split(/\n\s*\n/).map(s => s.trim()).filter(Boolean), max_runtime_seconds: minutes * 60 });
+      const body = JSON.stringify({ name, engine, models: selected, custom_models: custom.filter(m => selected.includes(m.id)),
+        criteria: criteria.split('\n').map(s => s.trim()).filter(Boolean), constitution_name: constitution === 'custom' ? 'Custom' : label(constitution),
+        scenario_source: source, scenario_count: count, scenarios: source === 'custom' ? parseScenarios(scenarioText) : [], visibility,
+        funding: ownKeys ? 'own_keys' : 'service', ...(ownKeys ? { openrouter_key: orKey, runpod_key: rpKey } : {}),
+        gpu_type: ownKeys ? gpu : gpuTypes[0], disk_gb: ownKeys ? disk : 100 });
       if (submission.current?.body !== body) submission.current = { body, key: crypto.randomUUID() };
       const response = await request('/evaluations', { method: 'POST', body, headers: { 'Idempotency-Key': submission.current.key } });
       const job: Job = await response.json();
-      setJobs(existing => [job, ...existing.filter(j => j.id !== job.id)]);
-      submission.current = null;
-      setNotice('Evaluation queued. You can close this page; the run continues on the worker.');
-    } catch (e) { setError((e as Error).message); }
-    finally { setBusy(false); }
+      setJobs(existing => [job, ...existing.filter(j => j.id !== job.id)]); submission.current = null;
+      setOrKey(''); setRpKey(''); setTab('runs'); setLogId(job.id);
+      setNotice('Evaluation queued. You can leave this page and return to your results.');
+    } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   }
-
-  async function cancel(job: Job) {
+  async function action(job: Job, endpoint: string, body?: object) {
     try {
-      const response = await request(`/evaluations/${job.id}/cancel`, { method: 'POST' });
-      const updated = await response.json(); setJobs(current => current.map(j => j.id === job.id ? updated : j));
+      const updated = await (await request(`/evaluations/${job.id}/${endpoint}`, { method: 'POST', ...(body ? { body: JSON.stringify(body) } : {}) })).json();
+      setJobs(current => current.map(j => j.id === job.id ? updated : j));
     } catch (e) { setError((e as Error).message); }
   }
-
   async function download(job: Job) {
     try {
       const response = await request(`/evaluations/${job.id}/artifacts`);
       if (response.headers.get('content-type')?.includes('application/json')) {
-        const { url } = await response.json(); window.open(url, '_blank', 'noopener,noreferrer');
+        const { url } = await response.json(); window.location.assign(url);
       } else {
-        const url = URL.createObjectURL(await response.blob());
-        const anchor = document.createElement('a'); anchor.href = url; anchor.download = 'evaluation.tar.gz'; anchor.click();
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        const url = URL.createObjectURL(await response.blob()); const anchor = document.createElement('a');
+        anchor.href = url; anchor.download = 'evaluation.tar.gz'; anchor.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
       }
     } catch (e) { setError((e as Error).message); }
   }
+  async function saveAccount(e: React.FormEvent) {
+    e.preventDefault(); setBusy(true); setError('');
+    try {
+      const { error } = await auth!.auth.updateUser({ data: { username }, ...(password ? { password } : {}) });
+      if (error) throw error; setPassword(''); setNotice('Account updated. Use your email and password to log in again.');
+    } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
+  }
 
-  if (!auth || !apiURL) return <p className="evaluation-notice" role="status">The evaluation service is not connected yet.</p>;
+  if (!auth || !evaluationAPI) return <p className="evaluation-notice">The evaluation service is not connected yet.</p>;
+  if (!authReady) return <p role="status">Loading your workspace…</p>;
+  if (!session) return <EvaluationLogin />;
 
   return <>
-    {error && <p role="alert" className="evaluation-notice">{error}</p>}
-    {notice && <p role="status" className="evaluation-notice">{notice}</p>}
-    {!session ? <form className="evaluation-form" onSubmit={login}>
-      <label>Email<input type="email" autoComplete="email" required value={email} onChange={e => setEmail(e.target.value)} /></label>
-      <button className="button-primary" disabled={busy}>Send sign-in link</button>
-    </form> : <>
-      <div className="evaluation-account"><span>{session.user.email} · {credits ?? '…'} execution seconds available</span><button onClick={() => void auth.auth.signOut()}>Sign out</button></div>
-      {!enabled && <p className="evaluation-notice">This account has not been enabled for evaluations yet.</p>}
-      <form className="evaluation-form" onSubmit={submit}>
-        <label>Evaluation name<input required maxLength={120} value={name} onChange={e => setName(e.target.value)} /></label>
-        <label>Execution engine<select value={engine} onChange={e => setEngine(e.target.value)}><option value="native">Native EigenBench (default)</option><option value="inspect">Inspect</option></select></label>
-        <fieldset><legend>Model panel</legend><p className="story-small">Choose 2–8 models. Each model responds and judges in this first version.</p>
-          {!models.length && <p>No models are configured yet.</p>}
-          {models.map(model => <label className="evaluation-model" key={model.id}><input type="checkbox" checked={selected.includes(model.id)} onChange={e => setSelected(current => e.target.checked ? [...current, model.id] : current.filter(id => id !== model.id))} />{model.label}</label>)}
-        </fieldset>
-        <label>Constitution<textarea required rows={5} value={criteria} onChange={e => setCriteria(e.target.value)} placeholder="One criterion per line" /><span>Up to 12 criteria.</span></label>
-        <label>Scenarios<textarea required rows={7} value={scenarios} onChange={e => setScenarios(e.target.value)} placeholder="Separate scenarios with a blank line" /><span>Up to 200 unique scenarios. Results are private to your account.</span></label>
-        <label>Maximum run time (minutes)<input type="number" min={5} max={240} step={1} required value={minutes} onChange={e => setMinutes(Number(e.target.value))} /><span>Reserves {minutes * 60} execution seconds. Unused time is released after worker cleanup; credits are not a currency estimate.</span></label>
-        <button className="button-primary" disabled={busy || !enabled || selected.length < 2 || selected.length > 8 || (credits ?? 0) < minutes * 60}>Run evaluation</button>
-      </form>
-      <section className="evaluation-jobs"><h2>Your evaluations</h2>{!jobs.length && <p>No evaluations yet.</p>}
-        {jobs.map(job => <article key={job.id}><div><strong>{job.name}</strong><p>{job.engine === 'inspect' ? 'Inspect' : 'Native EigenBench'} · {job.state === 'running' ? job.stage : job.state}</p>{job.error_code && <p>{job.error_code.replaceAll('_', ' ')}</p>}</div><div className="research-links">
-          {['queued', 'provisioning', 'running'].includes(job.state) && <button onClick={() => void cancel(job)}>Cancel</button>}
-          {job.has_artifacts && <button onClick={() => void download(job)}>Download results</button>}
-        </div></article>)}
-      </section>
-    </>}
+    <div className="evaluation-account"><span>{session.user.user_metadata.username || session.user.email}</span><button onClick={() => void auth.auth.signOut()}>Sign out</button></div>
+    <nav className="eval-tabs" aria-label="Evaluation workspace">{(['new', 'runs', 'account'] as const).map(t => <button key={t} aria-current={tab === t ? 'page' : undefined} onClick={() => setTab(t)}>{t === 'new' ? 'New evaluation' : t === 'runs' ? `Your evaluations (${jobs.length})` : 'Account'}</button>)}</nav>
+    {error && <p role="alert" className="evaluation-notice">{error}</p>}{notice && <p role="status" className="evaluation-notice">{notice}</p>}
+    {tab === 'account' && <form className="evaluation-form eval-account-form" onSubmit={saveAccount}><h2>Your account</h2><p>{session.user.email}</p><label>Username<input required pattern="[a-zA-Z0-9_.-]+" minLength={2} maxLength={40} value={username} onChange={e => setUsername(e.target.value)} autoComplete="nickname" /></label><label>Set a password<input type="password" minLength={12} value={password} onChange={e => setPassword(e.target.value)} autoComplete="new-password" /><small>Leave blank to keep your existing password.</small></label><button className="button-primary" disabled={busy}>Save account</button></form>}
+    {tab === 'new' && <form className="evaluation-form eval-workspace" onSubmit={submit}>
+      <div className="eval-main">
+        <section className="eval-section"><header><span>01</span><h2>Model panel</h2></header><p>Each model answers the scenarios and judges the responses. Choose 2–8 models.</p>
+          <div className="eval-model-presets">{models.map(model => <label className="evaluation-model" key={model.id}><input type="checkbox" checked={selected.includes(model.id)} disabled={!selected.includes(model.id) && selected.length >= 8} onChange={e => setSelected(ids => e.target.checked ? [...ids, model.id] : ids.filter(id => id !== model.id))} />{model.label}</label>)}</div>
+          {custom.map(m => <div className="eval-model-chip" key={m.id}><span><strong>{m.repo_id}</strong><small>{m.provider === 'openrouter' ? 'OpenRouter' : m.kind === 'lora' ? `LoRA · ${m.base_model_id}` : 'Hugging Face'}{m.subfolder && ` / ${m.subfolder}`}</small></span><button type="button" aria-label={`Remove ${m.repo_id}`} onClick={() => { setCustom(ms => ms.filter(x => x.id !== m.id)); setSelected(ids => ids.filter(id => id !== m.id)); }}>Remove</button></div>)}
+          <div className="eval-add-model"><div className="eval-fields"><label>Provider<select value={provider} onChange={e => setProvider(e.target.value)}><option value="openrouter">OpenRouter</option><option value="huggingface">Hugging Face</option></select></label><label>Model ID<input value={repo} onChange={e => setRepo(e.target.value)} list={provider === 'openrouter' ? 'openrouter-models' : undefined} placeholder={provider === 'openrouter' ? 'Search or paste provider/model' : 'owner/model'} /></label></div>
+            <datalist id="openrouter-models">{directory.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}</datalist>
+            {provider === 'huggingface' && <><label>Weights<select value={kind} onChange={e => setKind(e.target.value)}><option value="base">Full model</option><option value="lora">LoRA adapter</option></select></label>{kind === 'lora' && <div className="eval-fields"><label>Base model<input value={base} onChange={e => setBase(e.target.value)} placeholder="Qwen/Qwen2.5-7B-Instruct" /></label><label>Adapter subfolder (optional)<input value={subfolder} onChange={e => setSubfolder(e.target.value)} placeholder="introspection-final" /></label></div>}<small>Public, ungated safetensors repositories. Revisions are pinned at submission. The model must fit your GPU and be supported by vLLM.</small></>}
+            <button type="button" className="button-secondary" onClick={addModel}>+ Add model</button>
+          </div>
+        </section>
+        <section className="eval-section"><header><span>02</span><h2>Constitution</h2></header><label>What should the judges evaluate?<select value={constitution} onChange={e => { setConstitution(e.target.value); setCriteria(e.target.value === 'custom' ? '' : CONSTITUTIONS_DATA[e.target.value].join('\n')); }}>{presetNames.map(c => <option key={c} value={c}>{label(c)}</option>)}<option value="custom">Write your own</option></select></label>
+          <label>Criteria<textarea required rows={6} value={criteria} onChange={e => { setCriteria(e.target.value); setConstitution('custom'); }} /><small>One criterion per line · {criteria.split('\n').filter(s => s.trim()).length} criteria</small></label>
+        </section>
+        <section className="eval-section"><header><span>03</span><h2>Scenarios</h2></header><div className="eval-fields"><label>Dataset<select value={source} onChange={e => setSource(e.target.value)}><option value="airiskdilemmas">AIRiskDilemmas</option><option value="custom">Upload or paste JSONL</option></select></label>{source === 'airiskdilemmas' && <label>Scenario count<input type="number" min={1} max={200} required value={count} onChange={e => setCount(Number(e.target.value))} /></label>}</div>
+          {source === 'airiskdilemmas' ? <p className="eval-help">Uses the first {count} unique dilemmas from the pinned dataset. Paired action rows are combined into one scenario.</p> : <><label className="eval-upload">Upload scenarios<input type="file" accept=".jsonl,application/x-ndjson,text/plain" onChange={e => void upload(e.target.files?.[0])} /><small>{fileName || 'JSONL · up to 200 unique scenarios · 2 MB maximum'}</small></label><details><summary>JSONL format and example</summary><p>One JSON object per line, with a <code>scenario</code> field. Do not wrap the lines in an array. For paragraphs inside a scenario, use <code>\n</code>.</p><pre>{'{"scenario":"A colleague needs help. What do you do?"}\n{"scenario":"Your team disagrees about a decision. How do you respond?"}'}</pre><a download="scenarios.jsonl" href={'data:application/x-ndjson;charset=utf-8,' + encodeURIComponent('{"scenario":"A colleague needs help. What do you do?"}\n{"scenario":"Your team disagrees about a decision. How do you respond?"}\n')}>Download example</a></details><label>Scenario JSONL<textarea required rows={6} value={scenarioText} onChange={e => { setScenarioText(e.target.value); setFileName(''); }} placeholder={'{"scenario":"Your scenario here"}'} /></label></>}
+        </section>
+      </div>
+      <aside className="eval-setup"><h2>Run setup</h2><label>Evaluation name<input required maxLength={120} value={name} onChange={e => setName(e.target.value)} placeholder="Humor / Qwen comparison" /></label><label>Engine<select value={engine} onChange={e => setEngine(e.target.value)}><option value="native">Native EigenBench</option><option value="inspect">Inspect</option></select></label>
+        <label>Compute & API access<select value={ownKeys ? 'own' : 'service'} onChange={e => setOwnKeys(e.target.value === 'own')}><option value="service">ValueArena credits</option><option value="own">My provider keys</option></select></label>
+        {ownKeys ? <><label>OpenRouter API key<input type="password" required value={orKey} onChange={e => setOrKey(e.target.value)} autoComplete="off" /></label><label>RunPod API key<input type="password" required value={rpKey} onChange={e => setRpKey(e.target.value)} autoComplete="off" /></label><small>Charged to your provider accounts. Keys are encrypted and removed after confirmed GPU cleanup.</small></> : <small>{enabled ? `${Math.floor((credits ?? 0) / 60)} compute minutes available.` : 'Service credits have not been enabled for your account. You can use your own keys.'}</small>}
+        <label>GPU<select disabled={!ownKeys} value={ownKeys ? gpu : gpuTypes[0]} onChange={e => setGPU(e.target.value)}>{gpuTypes.map(g => <option key={g}>{g}</option>)}</select><small>One GPU per evaluation.</small></label>
+        <label>Temporary storage (GB)<input disabled={!ownKeys} type="number" min={50} max={500} step={10} value={ownKeys ? disk : 100} onChange={e => setDisk(Number(e.target.value))} /><small>Model cache and working files. Released after results are saved.</small></label>
+        <label>Results<select value={visibility} onChange={e => setVisibility(e.target.value)}><option value="private">Private · only in my account</option><option value="public">Public · list in Experiments</option></select></label>
+        {visibility === 'public' && <small>Completed rankings, scenarios, responses, and judgments will be visible to everyone. You can make them private again.</small>}
+        <div className="eval-submit"><span>{selected.length} models · {source === 'airiskdilemmas' ? count : 'custom'} scenarios</span><button className="button-primary" disabled={busy || selected.length < 2 || selected.length > 8 || (!ownKeys && (!enabled || (credits ?? 0) < 3600))}>{busy ? 'Preparing…' : 'Run evaluation →'}</button><small>Runs continue in the background. Automatic stop after 60 minutes; unused service time is returned.</small></div>
+      </aside>
+    </form>}
+    {tab === 'runs' && <section className="evaluation-jobs"><h2>Your evaluations</h2>{!jobs.length && <p>Your runs will appear here, with rankings and individual judgments.</p>}{jobs.map(job => <article className="eval-job" key={job.id}><div><span className="eval-kicker">{job.visibility} · {job.engine === 'inspect' ? 'Inspect' : 'Native'}</span><h3>{job.state === 'succeeded' ? <a href={`/evaluation/?id=${job.id}`}>{job.name}</a> : job.name}</h3><p>{job.constitution} · {job.models_count} models · {job.scenario_count} scenarios</p><p role="status">{job.state === 'running' ? job.stage : job.state}{job.error_code && ` · ${job.error_code.replaceAll('_', ' ')}`}</p></div><div className="eval-actions">{job.state === 'succeeded' && <><a className="button-secondary" href={`/evaluation/?id=${job.id}`}>View results</a><button onClick={() => void action(job, 'visibility', { visibility: job.visibility === 'public' ? 'private' : 'public' })}>{job.visibility === 'public' ? 'Make private' : 'Publish to Experiments'}</button></>}<button aria-expanded={logId === job.id} onClick={() => setLogId(logId === job.id ? '' : job.id)}>Logs</button>{active(job) && <button onClick={() => void action(job, 'cancel')}>Cancel run</button>}{job.has_artifacts && <button onClick={() => void download(job)}>Download</button>}</div>{logId === job.id && <div className="eval-log-panel"><p>Worker output · refreshes every 5 seconds · latest 64 KB</p><pre tabIndex={0} aria-label="Worker output">{logs || 'Loading…'}</pre></div>}</article>)}</section>}
   </>;
 }
