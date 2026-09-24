@@ -38,6 +38,9 @@ def service(tmp_path):
         database_url='sqlite:///'+str(tmp_path/'test.db'), model_catalog_path=catalog,
         startup_timeout=60, heartbeat_timeout=60, max_artifact_bytes=1024)
     db = Store(cfg.database_url); db.initialize(); db.grant(USER, 10000); db.grant(OTHER, 10000)
+    from app.governance import PolicyUpdate
+    policy = db.policy(); policy['policy']['limits']['require_credits'] = True; policy['policy']['limits']['max_outstanding_jobs'] = 2; policy['policy']['max_running_jobs'] = 1
+    db.set_policy(USER, PolicyUpdate(**policy))
     client = TestClient(create_app(cfg, db, Auth(), LocalStorage(tmp_path/'objects')))
     return cfg, db, client
 

@@ -95,7 +95,7 @@ def execute_stage(command, directory, abort, deadline):
         process = subprocess.Popen(command, stdout=log, stderr=subprocess.STDOUT, env=env, start_new_session=True)
         try:
             while process.poll() is None:
-                if abort.wait(1) or time.time() >= deadline:
+                if abort.wait(1) or (deadline is not None and time.time() >= deadline):
                     raise RuntimeError('cancelled_or_timed_out')
                 if (directory/'execution.log').stat().st_size > 20_000_000:
                     raise RuntimeError('log_size_limit')

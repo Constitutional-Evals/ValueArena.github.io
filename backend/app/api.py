@@ -290,7 +290,7 @@ def create_app(config=None, store=None, auth=None, storage=None):
     def worker_config(job=Depends(worker)):
         if job['state'] not in ACTIVE: raise HTTPException(409, 'Job is no longer active')
         return {'id': job['id'], 'config': job['config'],
-                'deadline_at': job['started_at'] + job['config']['max_runtime_seconds'],
+                'deadline_at': (job['started_at'] + job['config']['max_runtime_seconds']) if job['config'].get('max_runtime_seconds') is not None else None,
                 'max_artifact_bytes': cfg.max_artifact_bytes}
 
     @app.post('/internal/jobs/{job_id}/heartbeat')

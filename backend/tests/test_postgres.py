@@ -24,6 +24,9 @@ def store():
         connection.execute(text("DO $$ BEGIN CREATE ROLE anon; EXCEPTION WHEN duplicate_object THEN NULL; END $$;"))
         connection.execute(text("DO $$ BEGIN CREATE ROLE authenticated; EXCEPTION WHEN duplicate_object THEN NULL; END $$;"))
     db.initialize()
+    from app.governance import PolicyUpdate
+    policy = db.policy(); policy['policy']['limits']['require_credits'] = True
+    db.set_policy(str(uuid4()), PolicyUpdate(**policy))
     return db
 
 
