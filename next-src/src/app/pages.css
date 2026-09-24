@@ -311,3 +311,40 @@ body:has(.arena-home) .page-hills {
     overflow-x: auto;
   }
 }
+
+/* ---------- Evaluate form alignment ---------- */
+/* The account form is a card too, so it needs the same inner padding */
+.va-main .eval-account-form {
+  padding: 28px 30px 30px;
+}
+/* Side-by-side fields line up at the top instead of stretching to the
+   taller neighbour, and every text box and dropdown shares one height */
+.eval-fields {
+  align-items: start;
+}
+.eval-workspace label,
+.eval-account-form label {
+  align-content: start;
+}
+.evaluation-form :is(input:not([type='checkbox']):not([type='file']), select) {
+  box-sizing: border-box;
+  min-height: 46px;
+  padding: 11px 14px;
+}
+/* Small actions inside a field (e.g. "Max available") read as a link under it */
+.va-main .eval-fields label > button {
+  justify-self: start;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  color: var(--accent);
+  font-size: 12px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.va-main .eval-fields label > button:hover {
+  color: var(--accent-hover);
+}
