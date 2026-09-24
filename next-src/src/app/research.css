@@ -519,3 +519,13 @@ a:focus-visible, button:focus-visible, summary:focus-visible, select:focus-visib
 .evaluation-page .button-secondary { background: var(--bg-elevated); color: var(--text); }
 .evaluation-page .button-secondary:hover { background: var(--bg-hover); }
 .evaluation-page button:disabled { cursor: not-allowed; }
+.eval-advanced { border-top: 1px solid var(--border); padding: 16px 0; font-size: 12px; line-height: 1.7; }
+.eval-advanced > summary { color: var(--accent); cursor: pointer; font-size: 13px; }
+.eval-advanced p { margin: 12px 0; color: var(--text-secondary); overflow-wrap: anywhere; }
+.eval-advanced textarea { font: 11px/1.65 var(--font-mono); tab-size: 2; min-height: 300px; }
+.eval-advanced .eval-actions { margin: 12px 0; gap: 10px; }
+.eval-advanced pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 450px; overflow: auto; background: var(--bg-hover); padding: 12px; font: 11px/1.65 var(--font-mono); }
+.eval-advanced [role=alert] { color: #b44b37; }
+.eval-advanced label { margin-top: 16px; }
+.eval-advanced .button-secondary { width: 100%; padding-inline: 8px; }
+.eval-setup:has(.eval-advanced[open]) { position: static; }

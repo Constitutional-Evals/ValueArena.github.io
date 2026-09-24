@@ -5,6 +5,7 @@ import type { Session } from '@supabase/supabase-js';
 import { evaluationAPI, evaluationAuth, evaluationRequest as request, type EvaluationJob as Job } from '@/lib/evaluation';
 import { CONSTITUTIONS_DATA } from '@/lib/constitutions-data';
 import { parseScenarios } from '@/lib/scenario-upload';
+import { AdvancedConfiguration, parseAdvancedSpec } from './AdvancedConfiguration';
 import { EvaluationLogin } from './EvaluationLogin';
 
 type Model = { id: string; label: string };
@@ -23,6 +24,9 @@ export function EvaluationRunner() {
   const [selected, setSelected] = useState<string[]>([]); const [custom, setCustom] = useState<CustomModel[]>([]);
   const [provider, setProvider] = useState('openrouter'); const [repo, setRepo] = useState('');
   const [kind, setKind] = useState('base'); const [base, setBase] = useState(''); const [subfolder, setSubfolder] = useState('');
+  const [advanced, setAdvanced] = useState('{}');
+  let advancedValid = true;
+  try { parseAdvancedSpec(advanced); } catch { advancedValid = false; }
   const [engine, setEngine] = useState('native'); const [name, setName] = useState('');
   const [constitution, setConstitution] = useState('humor');
   const [criteria, setCriteria] = useState(CONSTITUTIONS_DATA.humor.join('\n'));
@@ -100,14 +104,17 @@ export function EvaluationRunner() {
       setScenarioText(text); setFileName(`${file.name} · ${rows.length} scenarios`); setSource('custom');
     } catch (e) { setError((e as Error).message); }
   }
+  function buildRequest(includeKeys = true) {
+    return { name, engine, advanced_spec: parseAdvancedSpec(advanced), models: selected, custom_models: custom.filter(m => selected.includes(m.id)),
+        criteria: criteria.split('\n').map(s => s.trim()).filter(Boolean), constitution_name: constitution === 'custom' ? 'Custom' : label(constitution),
+        scenario_source: source, scenario_count: count, scenarios: source === 'custom' ? parseScenarios(scenarioText) : [], visibility,
+        funding: ownKeys ? 'own_keys' : 'service', ...(ownKeys && includeKeys ? { openrouter_key: orKey, runpod_key: rpKey } : {}),
+        gpu_type: ownKeys ? gpu : gpuTypes[0], disk_gb: ownKeys ? disk : 100 };
+  }
   async function submit(event: React.FormEvent) {
     event.preventDefault(); setError(''); setNotice(''); setBusy(true);
     try {
-      const body = JSON.stringify({ name, engine, models: selected, custom_models: custom.filter(m => selected.includes(m.id)),
-        criteria: criteria.split('\n').map(s => s.trim()).filter(Boolean), constitution_name: constitution === 'custom' ? 'Custom' : label(constitution),
-        scenario_source: source, scenario_count: count, scenarios: source === 'custom' ? parseScenarios(scenarioText) : [], visibility,
-        funding: ownKeys ? 'own_keys' : 'service', ...(ownKeys ? { openrouter_key: orKey, runpod_key: rpKey } : {}),
-        gpu_type: ownKeys ? gpu : gpuTypes[0], disk_gb: ownKeys ? disk : 100 });
+      const body = JSON.stringify(buildRequest());
       if (submission.current?.body !== body) submission.current = { body, key: crypto.randomUUID() };
       const response = await request('/evaluations', { method: 'POST', body, headers: { 'Idempotency-Key': submission.current.key } });
       const job: Job = await response.json();
@@ -175,7 +182,8 @@ export function EvaluationRunner() {
         <label>Temporary storage (GB)<input disabled={!ownKeys} type="number" min={50} max={500} step={10} value={ownKeys ? disk : 100} onChange={e => setDisk(Number(e.target.value))} /><small>Model cache and working files. Released after results are saved.</small></label>
         <label>Results<select value={visibility} onChange={e => setVisibility(e.target.value)}><option value="private">Private · only in my account</option><option value="public">Public · list in Experiments</option></select></label>
         {visibility === 'public' && <small>Completed rankings, scenarios, responses, and judgments will be visible to everyone. You can make them private again.</small>}
-        <div className="eval-submit"><span>{selected.length} models · {source === 'airiskdilemmas' ? count : 'custom'} scenarios</span><button className="button-primary" disabled={busy || selected.length < 2 || selected.length > 8 || (!ownKeys && (!enabled || (credits ?? 0) < 3600))}>{busy ? 'Preparing…' : 'Run evaluation →'}</button><small>Runs continue in the background. Automatic stop after 60 minutes; unused service time is returned.</small></div>
+        <AdvancedConfiguration value={advanced} onChange={setAdvanced} modelIds={selected} configVersion={JSON.stringify([advanced, name, engine, selected, custom, criteria, source, count, scenarioText])} getRequest={() => buildRequest(false)} />
+        <div className="eval-submit"><span>{selected.length} models · {source === 'airiskdilemmas' ? count : 'custom'} scenarios</span><button className="button-primary" disabled={busy || !advancedValid || selected.length < 2 || selected.length > 8 || (!ownKeys && (!enabled || (credits ?? 0) < 3600))}>{busy ? 'Preparing…' : 'Run evaluation →'}</button>{!advancedValid && <small role="alert">Fix the JSON in Advanced configuration before submitting.</small>}<small>Runs continue in the background. Automatic stop after 60 minutes; unused service time is returned.</small></div>
       </aside>
     </form>}
     {tab === 'runs' && <section className="evaluation-jobs"><h2>Your evaluations</h2>{!jobs.length && <p>Your runs will appear here, with rankings and individual judgments.</p>}{jobs.map(job => <article className="eval-job" key={job.id}><div><span className="eval-kicker">{job.visibility} · {job.engine === 'inspect' ? 'Inspect' : 'Native'}</span><h3>{job.state === 'succeeded' ? <a href={`/evaluation/?id=${job.id}`}>{job.name}</a> : job.name}</h3><p>{job.constitution} · {job.models_count} models · {job.scenario_count} scenarios</p><p role="status">{job.state === 'running' ? job.stage : job.state}{job.error_code && ` · ${job.error_code.replaceAll('_', ' ')}`}</p></div><div className="eval-actions">{job.state === 'succeeded' && <><a className="button-secondary" href={`/evaluation/?id=${job.id}`}>View results</a><button onClick={() => void action(job, 'visibility', { visibility: job.visibility === 'public' ? 'private' : 'public' })}>{job.visibility === 'public' ? 'Make private' : 'Publish to Experiments'}</button></>}<button aria-expanded={logId === job.id} onClick={() => setLogId(logId === job.id ? '' : job.id)}>Logs</button>{active(job) && <button onClick={() => void action(job, 'cancel')}>Cancel run</button>}{job.has_artifacts && <button onClick={() => void download(job)}>Download</button>}</div>{logId === job.id && <div className="eval-log-panel"><p>Worker output · refreshes every 5 seconds · latest 64 KB</p><pre tabIndex={0} aria-label="Worker output">{logs || 'Loading…'}</pre></div>}</article>)}</section>}
