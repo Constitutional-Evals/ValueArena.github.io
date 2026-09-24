@@ -687,3 +687,10 @@ a:focus-visible, button:focus-visible, summary:focus-visible, select:focus-visib
 .admin-job { padding:14px 0; border-bottom:1px solid var(--border); font-size:13px; }
 .admin-job time { font-size:11px; white-space:nowrap; }
 @media(max-width:600px) { .admin-panel{padding:18px;} .admin-limits{grid-template-columns:1fr 1fr;} .admin-toolbar,.admin-job{flex-wrap:wrap;} }
+
+.eval-progress { margin-top: .7rem; max-width: 64rem; }
+.eval-progress ol { display: flex; flex-wrap: wrap; gap: .4rem .8rem; list-style: none; padding: 0; margin: .9rem 0; }
+.eval-progress li { font-size: .75rem; color: var(--text-secondary); padding: .25rem .5rem; border: 1px solid var(--border); border-radius: 999px; }
+.eval-progress li[aria-current="step"] { color: var(--text-primary); border-color: currentColor; font-weight: 600; }
+.eval-progress li[data-complete="true"]::before { content: '✓ '; }
+.eval-progress small { display: block; margin-top: .35rem; }
