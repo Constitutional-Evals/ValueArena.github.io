@@ -55,7 +55,7 @@ def tick(db, pods, cfg, now=None):
                     db.patch(job['id'], ACTIVE, pod_id=matches[0]['id'])
                 if len(matches) > 1:
                     db.finish(job['id'], 'failed', 'duplicate_pods')
-                elif now - job['started_at'] >= job['config']['max_runtime_seconds']:
+                elif job['config'].get('max_runtime_seconds') is not None and now - job['started_at'] >= job['config']['max_runtime_seconds']:
                     db.finish(job['id'], 'failed', 'runtime_limit')
                 elif job['heartbeat_at'] and now-job['heartbeat_at'] > cfg.heartbeat_timeout:
                     db.finish(job['id'], 'failed', 'worker_unresponsive')
@@ -66,7 +66,7 @@ def tick(db, pods, cfg, now=None):
         current = db.list()
         occupied = sum(j['state'] in ACTIVE or (j['state'] in TERMINAL and not j['cleanup_done']) for j in current)
         for job in sorted(current, key=lambda j: j['created_at']):
-            if not p['dispatch_enabled'] or occupied >= p['max_running_jobs']: break
+            if not p['dispatch_enabled'] or (p['max_running_jobs'] is not None and occupied >= p['max_running_jobs']): break
             if job['state'] != 'queued' or job['id'] not in reachable: continue
             member=db.member(job['user_id'])
             if not member or member['status']!='approved':

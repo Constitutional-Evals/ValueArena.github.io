@@ -147,3 +147,50 @@ def test_implicit_phase_budgets_cannot_bypass_token_limit(service):
     assert submit(api,payload(response_tokens=128)).status_code==403
     body=payload(response_tokens=128,advanced_spec={'collection':{'generation':{'reflection':{'max_tokens':1024}}}})
     assert submit(api,body).status_code==202
+
+
+def test_unlimited_defaults_and_worker_deadline(service):
+    from app.governance import Policy, Limits
+    cfg,db,api,h=setup_admin(service)
+    p=db.policy(); p['policy']=Policy().model_dump()
+    db.set_policy(USER,PolicyUpdate(**p))
+    assert all(v is None for k,v in Limits().model_dump().items() if k.startswith('max_'))
+    body=payload(); body.pop('max_runtime_seconds')
+    result=submit(api,body)
+    assert result.status_code==202, result.text
+    job=db.get(result.json()['id'])
+    assert job['config']['max_runtime_seconds'] is None
+    assert job['reserved_credits']==0
+    pods=Pods(); tick(db,pods,cfg,now=1000)
+    from app.auth import worker_token
+    response=api.get('/internal/jobs/'+job['id'],headers={'Authorization':'Bearer '+worker_token(cfg.worker_secret,job['id'])})
+    assert response.status_code==200 and response.json()['deadline_at'] is None
+    db.patch(job['id'],('provisioning',),heartbeat_at=99999)
+    tick(db,pods,cfg,now=100000)
+    assert db.get(job['id'])['state']=='provisioning'
+
+
+def test_admin_runtime_cap_without_participant_duration(service):
+    cfg,db,api,h=setup_admin(service)
+    p=db.policy();p['policy']['limits'].update(require_credits=False,max_runtime_seconds=900)
+    db.set_policy(USER,PolicyUpdate(**p))
+    body=payload();body.pop('max_runtime_seconds')
+    response=submit(api,body);assert response.status_code==202,response.text
+    assert db.get(response.json()['id'])['config']['max_runtime_seconds']==900
+    pods=Pods();tick(db,pods,cfg,now=1000);tick(db,pods,cfg,now=1900)
+    assert db.get(response.json()['id'])['error_code']=='runtime_limit'
+
+
+def test_optional_credit_budget_and_large_panel(service):
+    from app.models import EvaluationRequest
+    from app.governance import enforce, Limits
+    models=[f'm{i}' for i in range(100)]
+    config=EvaluationRequest(name='Large panel',models=models,criteria=['Humor'],scenarios=['A question']).model_dump()
+    enforce(config,Limits().model_dump())
+    _,db,api,h=setup_admin(service)
+    body=payload();body.pop('max_runtime_seconds')
+    result=submit(api,body);assert result.status_code==202,result.text
+    job=db.get(result.json()['id'])
+    assert job['config']['max_runtime_seconds']==10000
+    assert job['reserved_credits']==10000
+    assert db.balance(USER)['credits']==0

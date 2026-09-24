@@ -44,6 +44,8 @@ class Conflict(Exception): pass
 class Forbidden(Exception): pass
 
 
+from .governance import Limits
+
 class Store(GovernanceStore):
     def __init__(self, url):
         self.engine = create_engine(url, pool_pre_ping=True)
@@ -108,7 +110,7 @@ class Store(GovernanceStore):
             member=c.execute(select(members).where(members.c.user_id==user_id).with_for_update()).mappings().first()
             if not member or member['status']!='approved': raise Forbidden('Account approval is required before running evaluations')
             if not p['submissions_enabled']: raise Forbidden('New evaluations are temporarily paused')
-            limits=member['limits'] or p['limits']
+            limits=Limits.model_validate(member['limits'] or p['limits']).model_dump()
             enforce(config,limits)
             account = c.execute(select(accounts).where(accounts.c.user_id == user_id).with_for_update()).mappings().first()
             own_keys = config.get('funding') == 'own_keys'
@@ -118,8 +120,17 @@ class Store(GovernanceStore):
                 if prior['request_hash'] != digest: raise Conflict('Idempotency key already used for another request')
                 return dict(prior)
             outstanding = c.execute(select(jobs.c.id).where(jobs.c.user_id == user_id, jobs.c.state.in_(('queued', *ACTIVE)))).all()
-            if len(outstanding) >= limits['max_outstanding_jobs']: raise Conflict('Outstanding evaluation limit reached')
-            reserve = 0 if own_keys else config['max_runtime_seconds']
+            if limits['max_outstanding_jobs'] is not None and len(outstanding) >= limits['max_outstanding_jobs']: raise Conflict('Outstanding evaluation limit reached')
+            config = dict(config)
+            runtime = config.get('max_runtime_seconds')
+            cap = limits['max_runtime_seconds']
+            if cap is not None: runtime = min(runtime,cap) if runtime is not None else cap
+            reserve = 0
+            if not own_keys and limits['require_credits']:
+                if account['credits'] < 300: raise Forbidden('At least five minutes of execution credits are required')
+                runtime = runtime if runtime is not None else account['credits']
+                reserve = runtime
+            config['max_runtime_seconds'] = runtime
             if account['credits'] < reserve: raise Forbidden('Insufficient execution credits')
             job_id = str(uuid4()); now = int(time.time())
             c.execute(update(accounts).where(accounts.c.user_id == user_id).values(credits=account['credits'] - reserve))

@@ -3,20 +3,21 @@ import { useEffect, useState, useRef } from 'react';
 import { evaluationAuth, evaluationRequest as request } from '@/lib/evaluation';
 import { EvaluationLogin } from './EvaluationLogin';
 
-type Limits = Record<string,number|boolean>;
+type Limits = Record<string,number|boolean|null>;
 type Member = {user_id:string;email:string;username:string;role:string;status:string;credits:number;version:number;limits:Limits|null};
-type Policy = {approval_required:boolean;submissions_enabled:boolean;dispatch_enabled:boolean;max_running_jobs:number;default_credits:number;limits:Limits;spec_defaults:Record<string,unknown>};
+type Policy = {approval_required:boolean;submissions_enabled:boolean;dispatch_enabled:boolean;max_running_jobs:number|null;default_credits:number;limits:Limits;spec_defaults:Record<string,unknown>};
 type Snapshot = {version:number;policy:Policy;members:Member[];audit:{id:string;action:string;target:string;actor:string;created_at:number}[];limits_schema:{properties:Record<string,{minimum?:number;maximum?:number}>}};
 const title=(s:string)=>s.replaceAll('_',' ').replace(/^./,c=>c.toUpperCase());
 function LimitsForm({value,onChange,schema}:{value:Limits;onChange:(v:Limits)=>void;schema:Snapshot['limits_schema']}) {
  return <>
-  <div className="eval-actions"><button type="button" onClick={()=>onChange(Object.fromEntries(Object.entries(value).map(([key,v])=>[key,typeof v==='number' ? schema.properties[key]?.maximum ?? v : v])))}>Set all to max supported</button></div>
-  <p className="eval-help">Maximum values remove additional account restrictions up to the hosted runner’s supported limits. Model context windows, available scenarios and provider capacity still apply.</p>
+  <div className="eval-actions"><button type="button" onClick={()=>onChange(Object.fromEntries(Object.entries(value).map(([key,v])=>[key,typeof v==='boolean' ? v : null])))}>Remove all numeric limits</button></div>
+  <p className="eval-help">Blank means no account limit. Provider capacity, model context windows and dataset size still apply. Enable “Require credits” to enforce an execution-time budget.</p>
   <div className="admin-limits">{Object.entries(value).map(([key,v])=>{
-   const field=schema.properties[key];
+   const property=schema.properties[key] as {minimum?:number;anyOf?:{minimum?:number}[]};
+   const minimum=property?.minimum ?? property?.anyOf?.find(p=>p.minimum!==undefined)?.minimum;
    return <label key={key}>{title(key)}{typeof v==='boolean'?<input type="checkbox" checked={v} onChange={e=>onChange({...value,[key]:e.target.checked})}/>:<>
-    <input type="number" required min={field?.minimum} max={field?.maximum} value={v} onChange={e=>onChange({...value,[key]:Number(e.target.value)})}/>
-    {field?.maximum!==undefined&&<button type="button" aria-label={`Set ${title(key)} to maximum supported`} onClick={()=>onChange({...value,[key]:field.maximum!})}>{v===field.maximum?'Maximum selected':`Max supported · ${field.maximum.toLocaleString()}`}</button>}
+    <input type="number" min={minimum} placeholder="No limit" value={v??''} onChange={e=>onChange({...value,[key]:e.target.value===''?null:Number(e.target.value)})}/>
+    <button type="button" onClick={()=>onChange({...value,[key]:null})}>No limit</button>
    </>}</label>;
   })}</div>
  </>;
@@ -47,7 +48,7 @@ export function AdminConsole() {
    <label className="admin-toggle"><input type="checkbox" checked={policy.approval_required} onChange={e=>setPolicy({...policy,approval_required:e.target.checked})}/>Require approval for new accounts</label><p>Turning this off approves future access requests automatically. Existing pending or suspended accounts keep their current status.</p>
    <label className="admin-toggle"><input type="checkbox" checked={policy.submissions_enabled} onChange={e=>setPolicy({...policy,submissions_enabled:e.target.checked})}/>Accept new evaluations</label>
    <label className="admin-toggle"><input type="checkbox" checked={policy.dispatch_enabled} onChange={e=>setPolicy({...policy,dispatch_enabled:e.target.checked})}/>Start queued evaluations</label><p>Pausing dispatch leaves running jobs and GPU cleanup active.</p>
-   <div className="eval-fields"><label>Concurrent GPU jobs<input required type="number" min={1} max={10} value={policy.max_running_jobs} onChange={e=>setPolicy({...policy,max_running_jobs:Number(e.target.value)})}/></label><label>Initial credits for auto-approved accounts (seconds)<input required type="number" min={0} max={1000000} value={policy.default_credits} onChange={e=>setPolicy({...policy,default_credits:Number(e.target.value)})}/></label></div>
+   <div className="eval-fields"><label>Concurrent GPU jobs<input type="number" min={1} placeholder="No limit" value={policy.max_running_jobs??''} onChange={e=>setPolicy({...policy,max_running_jobs:e.target.value===''?null:Number(e.target.value)})}/></label><label>Initial credits for auto-approved accounts (seconds)<input required type="number" min={0} max={1000000} value={policy.default_credits} onChange={e=>setPolicy({...policy,default_credits:Number(e.target.value)})}/></label></div>
    <h3>Default participant limits</h3><LimitsForm value={policy.limits} onChange={v=>setPolicy({...policy,limits:v})} schema={data.limits_schema}/>
    <details className="eval-advanced"><summary>Default spec settings</summary><p>Defaults for new evaluations. Participants can override supported fields within their limits. Hosted filesystem paths and executable Python remain managed by the runner.</p><textarea aria-label="Default spec JSON" rows={16} value={spec} onChange={e=>setSpec(e.target.value)} spellCheck={false}/></details><button className="button-primary" disabled={busy}>Save site settings</button>
   </form>

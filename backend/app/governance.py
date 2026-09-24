@@ -8,14 +8,15 @@ from .advanced import AdvancedSpec
 
 class Limits(BaseModel):
     model_config = ConfigDict(extra='forbid')
-    max_models: int = Field(8, ge=2, le=64)
-    max_scenarios: int = Field(200, ge=1, le=3000)
-    max_runtime_seconds: int = Field(14400, ge=300, le=86400)
-    max_tokens: int = Field(8192, ge=128, le=32768)
-    max_outstanding_jobs: int = Field(2, ge=1, le=20)
-    max_disk_gb: int = Field(500, ge=50, le=1000)
-    max_workers: int = Field(32, ge=1, le=64)
-    max_bootstraps: int = Field(2000, ge=1, le=10000)
+    max_models: int | None = Field(None, ge=2)
+    max_scenarios: int | None = Field(None, ge=1)
+    max_runtime_seconds: int | None = Field(None, ge=300)
+    max_tokens: int | None = Field(None, ge=128)
+    max_outstanding_jobs: int | None = Field(None, ge=1)
+    max_disk_gb: int | None = Field(None, ge=50)
+    max_workers: int | None = Field(None, ge=1)
+    max_bootstraps: int | None = Field(None, ge=1)
+    require_credits: bool = False
     allow_own_keys: bool = True
     allow_public_results: bool = True
 
@@ -24,7 +25,7 @@ class Policy(BaseModel):
     approval_required: bool = True
     submissions_enabled: bool = True
     dispatch_enabled: bool = True
-    max_running_jobs: int = Field(1, ge=1, le=10)
+    max_running_jobs: int | None = Field(None, ge=1)
     default_credits: int = Field(0, ge=0, le=1_000_000)
     limits: Limits = Field(default_factory=Limits)
     spec_defaults: AdvancedSpec = Field(default_factory=AdvancedSpec)
@@ -85,7 +86,7 @@ def enforce(config, limits):
         (advanced.collection.openrouter.max_workers,'max_workers'),
         (advanced.training.bootstrap.n_bootstraps,'max_bootstraps')])
     for value, name in checks:
-        if value > limits[name]: raise Forbidden(f'{name}: this account allows at most {limits[name]}')
+        if value is not None and limits.get(name) is not None and value > limits[name]: raise Forbidden(f'{name}: this account allows at most {limits[name]}')
     if config['funding']=='own_keys' and not limits['allow_own_keys']: raise Forbidden('Personal provider keys are disabled for this account')
     if config['visibility']=='public' and not limits['allow_public_results']: raise Forbidden('Public results are disabled for this account')
 

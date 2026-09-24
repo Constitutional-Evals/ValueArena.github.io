@@ -38,16 +38,16 @@ class EvaluationRequest(BaseModel):
     disk_gb: int = Field(default=100, ge=50, le=1000)
     engine: Literal['native', 'inspect'] = 'native'
     name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=120)]
-    models: list[ModelID] = Field(min_length=2, max_length=64)
-    criteria: list[Criterion] = Field(min_length=1, max_length=64)
+    models: list[ModelID] = Field(min_length=2)
+    criteria: list[Criterion] = Field(min_length=1)
     constitution_name: Annotated[str, StringConstraints(max_length=100)] = 'Custom'
-    custom_models: list[CustomModel] = Field(default_factory=list, max_length=64)
+    custom_models: list[CustomModel] = Field(default_factory=list)
     scenario_source: Literal['airiskdilemmas', 'custom'] = 'airiskdilemmas'
     scenario_count: int = Field(default=200, ge=1, le=3000)
     visibility: Literal['private', 'public'] = 'private'
-    scenarios: list[Text] = Field(default_factory=list, max_length=3000)
-    max_runtime_seconds: int = Field(default=3600, ge=300, le=86400)
-    response_tokens: int = Field(default=1024, ge=128, le=32768)
+    scenarios: list[Text] = Field(default_factory=list)
+    max_runtime_seconds: int | None = Field(default=None, ge=300)
+    response_tokens: int = Field(default=1024, ge=128)
     seed: int = Field(default=42, ge=0, le=2**31-1)
 
     @model_validator(mode='after')

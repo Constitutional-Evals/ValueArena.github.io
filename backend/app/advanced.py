@@ -8,11 +8,11 @@ class Options(BaseModel):
     model_config = ConfigDict(extra='forbid', allow_inf_nan=False)
 
 class Decoding(Options):
-    max_tokens: int | None = Field(default=None, ge=1, le=64768)
+    max_tokens: int | None = Field(default=None, ge=1)
     temperature: float | None = Field(default=None, ge=0, le=2)
 
 class Phase(Decoding):
-    per_model: dict[str, Decoding] = Field(default_factory=dict, max_length=64)
+    per_model: dict[str, Decoding] = Field(default_factory=dict)
 
 class Generation(Options):
     response: Phase = Field(default_factory=Phase)
@@ -34,19 +34,19 @@ class Evaluation(Options):
     direct_rating: DirectRating = Field(default_factory=DirectRating)
 
 class Dataset(Options):
-    start: int = Field(default=0, ge=0, le=2999)
-    count: int | None = Field(default=None, ge=1, le=3000)
+    start: int = Field(default=0, ge=0)
+    count: int | None = Field(default=None, ge=1)
     shuffle: bool = False
     shuffle_seed: Seed = 42
 
 class Constitution(Options):
-    num_criteria: int | None = Field(default=None, ge=1, le=64)
+    num_criteria: int | None = Field(default=None, ge=1)
 
 class Inspect(Options):
     cache: bool = False
     phased: bool | None = None
-    max_connections: int = Field(default=4, ge=1, le=64)
-    max_samples: int | None = Field(default=None, ge=1, le=64)
+    max_connections: int = Field(default=4, ge=1)
+    max_samples: int | None = Field(default=None, ge=1)
     retry_on_error: int = Field(default=0, ge=0, le=5)
     display: Literal['plain', 'none'] = 'plain'
 
@@ -55,21 +55,21 @@ class OpenRouter(Options):
     timeout_seconds: float = Field(default=300, gt=0, le=600)
     backoff_base_seconds: float = Field(default=2, ge=0, le=60)
     backoff_cap_seconds: float = Field(default=60, ge=0, le=120)
-    max_workers: int = Field(default=10, ge=1, le=64)
+    max_workers: int = Field(default=10, ge=1)
 
 class Collection(Options):
     enabled: Literal[True] = True
     sampler_mode: Literal['all_to_all', 'partitioned_random_judge', 'balanced_unique_judge'] = 'all_to_all'
     sampler_seed: Seed = 42
-    group_size: int = Field(default=4, ge=1, le=64)
-    response_redundancy: int = Field(default=1, ge=1, le=64)
+    group_size: int = Field(default=4, ge=1)
+    response_redundancy: int = Field(default=1, ge=1)
     generation: Generation = Field(default_factory=Generation)
     inspect: Inspect = Field(default_factory=Inspect)
     openrouter: OpenRouter = Field(default_factory=OpenRouter)
 
 class Bootstrap(Options):
     enabled: bool = True
-    n_bootstraps: int = Field(default=200, ge=1, le=10000)
+    n_bootstraps: int = Field(default=200, ge=1)
     random_seed: Seed = 42
     save_trust_matrices: bool = True
 
