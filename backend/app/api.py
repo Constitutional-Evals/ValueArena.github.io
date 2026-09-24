@@ -21,13 +21,14 @@ from .governance import PolicyUpdate, MemberUpdate, CreditGrant, Policy, Limits,
 from .spec import build_spec
 from .secrets import encrypt
 from .results import ResultSummary, ResultBatch
+from .progress import progress
 from .storage import LocalStorage, SupabaseStorage
 
 
 def public_job(job):
     return {key: job[key] for key in ('id', 'state', 'stage', 'created_at', 'started_at', 'finished_at',
             'reserved_credits', 'charged_credits', 'error_code')} | {
-                'name': job['config']['name'], 'engine': job['config']['engine'],
+                'progress': progress(job), 'name': job['config']['name'], 'engine': job['config']['engine'],
                 'has_artifacts': bool(job['artifact']),
                 'funding': job['config'].get('funding', 'service'),
                 'visibility': job['config'].get('visibility', 'private'),
