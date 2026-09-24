@@ -7,6 +7,7 @@ import { CONSTITUTIONS_DATA } from '@/lib/constitutions-data';
 import { parseScenarios } from '@/lib/scenario-upload';
 import { AdvancedConfiguration, parseAdvancedSpec } from './AdvancedConfiguration';
 import { EvaluationLogin } from './EvaluationLogin';
+import { Penguin } from './Penguin';
 
 type Model = { id: string; label: string };
 type CustomModel = { id: string; provider: string; repo_id: string; kind: string; subfolder: string; base_model_id: string };
@@ -154,15 +155,15 @@ export function EvaluationRunner() {
   }
 
   if (!auth || !evaluationAPI) return <p className="evaluation-notice">The evaluation service is not connected yet.</p>;
-  if (!authReady) return <p role="status">Loading your workspace…</p>;
+  if (!authReady) return <div className="evaluation-notice eval-status" role="status"><Penguin size={40} state="loading" /><span>Loading your workspace…</span></div>;
   if (!session) return <EvaluationLogin />;
 
   return <>
-    <div className="evaluation-account"><span>{session.user.user_metadata.username || session.user.email}</span>{isAdmin && <a href="/admin/">Administration</a>}<button onClick={() => void auth.auth.signOut()}>Sign out</button></div>
+    <div className="evaluation-account"><span className="evaluation-account-user"><small>Signed in as</small>{session.user.user_metadata.username || session.user.email}</span><div className="evaluation-account-actions">{isAdmin && <a href="/admin/">Administration</a>}<button onClick={() => void auth.auth.signOut()}>Sign out</button></div></div>
     <nav className="eval-tabs" aria-label="Evaluation workspace">{(['new', 'runs', 'account'] as const).map(t => <button key={t} aria-current={tab === t ? 'page' : undefined} onClick={() => setTab(t)}>{t === 'new' ? 'New evaluation' : t === 'runs' ? `Your evaluations (${jobs.length})` : 'Account'}</button>)}</nav>
     {error && <p role="alert" className="evaluation-notice">{error}</p>}{notice && <p role="status" className="evaluation-notice">{notice}</p>}
     {tab === 'account' && <form className="evaluation-form eval-account-form" onSubmit={saveAccount}><h2>Your account</h2><p>{session.user.email}</p><label>Username<input required pattern="[a-zA-Z0-9_.-]+" minLength={2} maxLength={40} value={username} onChange={e => setUsername(e.target.value)} autoComplete="nickname" /></label><label>Set a password<input type="password" minLength={12} value={password} onChange={e => setPassword(e.target.value)} autoComplete="new-password" /><small>Leave blank to keep your existing password.</small></label><button className="button-primary" disabled={busy}>Save account</button></form>}
-    {tab === 'new' && access!=='approved' && <p className="evaluation-notice" role="status">{access==='loading'?'Checking account access…':access==='pending'?'Your access request is waiting for administrator approval.':`Your account is ${access}. Contact an administrator.`}</p>}
+    {tab === 'new' && access!=='approved' && <div className="evaluation-notice eval-status" role="status"><Penguin size={40} state={access==='loading'?'loading':'idle'} /><span>{access==='loading'?'Checking account access…':access==='pending'?'Your access request is waiting for administrator approval.':`Your account is ${access}. Contact an administrator.`}</span></div>}
     {tab === 'new' && access==='approved' && <form className="evaluation-form eval-workspace" onSubmit={submit}>
       <div className="eval-main">
         <section className="eval-section"><header><span>01</span><h2>Model panel</h2></header><p>Each model answers the scenarios and judges the responses. Choose 2–{limits.max_models} models.</p>

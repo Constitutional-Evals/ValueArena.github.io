@@ -1,0 +1,313 @@
+/* Inner pages (Evaluate, Leaderboard, Explore, Experiments, Research, Compare,
+   Admin) share the home page's surfaces: a pixel landscape behind the top of
+   the page, rounded cards on the page colour, pill controls and soft hovers. */
+
+/* ---------- Page-top landscape ---------- */
+.page-hills {
+  position: absolute;
+  z-index: -1;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 360px;
+  pointer-events: none;
+  /* The hills are drawn along the bottom of this box, so fade only its last
+     stretch into the page, and keep the left side clear for the page title */
+  -webkit-mask-image: linear-gradient(to right, transparent 15%, #000 70%), linear-gradient(to bottom, #000 72%, transparent);
+  -webkit-mask-composite: source-in;
+  mask-image: linear-gradient(to right, transparent 15%, #000 70%), linear-gradient(to bottom, #000 72%, transparent);
+  mask-composite: intersect;
+}
+body:has(.arena-home) .page-hills {
+  display: none;
+}
+
+/* The header rule stopped short of the content; the landscape does the job now */
+.research-page-head,
+.evaluation-page .research-page-head,
+.chat-setup-hero {
+  border-bottom: 0;
+}
+.research-page-head,
+.evaluation-page .research-page-head {
+  border-bottom: 0;
+  max-width: 820px;
+  margin-bottom: 20px;
+}
+
+/* ---------- One card surface for every main panel ---------- */
+.va-main :is(
+    .eval-section,
+    .eval-setup,
+    .evaluation-login,
+    .eval-job,
+    .admin-panel,
+    .eval-account-form,
+    .results-explorer:not(.home-tradeoff),
+    .table-wrap,
+    .lb-plot,
+    .battle-setup,
+    .paper-entry
+  ) {
+  background: var(--card-bg);
+  border: 1px solid var(--card-line);
+  border-radius: 24px;
+  box-shadow: var(--card-shadow);
+  transition: box-shadow 0.35s ease, transform 0.35s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.va-main :is(.eval-job, .paper-entry):hover {
+  transform: translateY(-2px);
+  box-shadow: var(--card-shadow-hover);
+}
+.va-main :is(.results-explorer:not(.home-tradeoff), .lb-plot, .paper-entry) {
+  padding: 24px 26px;
+}
+.va-main .table-wrap {
+  overflow: auto;
+  padding: 6px 8px;
+}
+.va-main .table-wrap table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+/* ---------- Evaluate workspace ---------- */
+.evaluation-account {
+  align-items: center;
+  padding: 0 0 18px;
+  border-bottom: 0;
+}
+.evaluation-account-user {
+  display: grid;
+  gap: 2px;
+  font-size: 15px;
+  font-weight: 500;
+}
+.evaluation-account-user small {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+.evaluation-account-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.va-main .evaluation-account-actions :is(a, button) {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--card-bg);
+  color: var(--text);
+  font-size: 12px;
+  text-decoration: none;
+  box-shadow: none;
+  cursor: pointer;
+  transition: border-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+.va-main .evaluation-account-actions :is(a, button):hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  transform: translateY(-1px);
+}
+
+/* Tabs become a segmented pill, like the explorer's view switch */
+.eval-tabs {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  margin-bottom: 8px;
+  border: 1px solid var(--card-line);
+  border-radius: 999px;
+  background: var(--card-bg);
+  box-shadow: var(--card-shadow);
+}
+.va-main .eval-tabs button {
+  padding: 9px 16px;
+  border: 0;
+  border-radius: 999px;
+  box-shadow: none;
+  color: var(--text-muted);
+  font-size: 13px;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+.va-main .eval-tabs button:hover {
+  color: var(--text);
+  background: var(--accent-dim);
+}
+.va-main .eval-tabs button[aria-current] {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+/* Main column: each numbered step is its own card */
+.eval-main {
+  display: grid;
+  gap: 18px;
+}
+.eval-section,
+.eval-section:first-child {
+  padding: 26px 28px 28px;
+  border-bottom: 1px solid var(--card-line);
+}
+.eval-setup {
+  padding: 26px 24px;
+}
+.eval-setup h2 {
+  font-size: 20px;
+}
+
+/* Model picker: rounded chips with a clear selected state */
+.eval-workspace .eval-model-presets {
+  margin: 20px 0;
+}
+.eval-workspace .evaluation-model {
+  padding: 13px 14px;
+  border: 1px solid var(--border-light);
+  border-radius: 14px;
+  background: var(--bg);
+  font-size: 13.5px;
+  transition: border-color 0.2s ease, background-color 0.2s ease, transform 0.2s ease;
+}
+.eval-workspace .evaluation-model:hover {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  transform: translateY(-1px);
+}
+.eval-workspace .evaluation-model:has(input:checked) {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 9%, var(--card-bg));
+  font-weight: 500;
+}
+.eval-workspace .evaluation-model:has(input:disabled) {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.eval-add-model {
+  border: 1px dashed color-mix(in srgb, var(--text) 22%, transparent);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--bg) 60%, transparent);
+}
+.eval-upload {
+  border-radius: 16px;
+}
+.eval-model-chip {
+  padding: 12px 14px;
+  margin: 8px 0;
+  border: 1px solid var(--border-light);
+  background: var(--bg);
+}
+
+/* Status and notices: a soft card, with the penguin when something is loading */
+.evaluation-notice {
+  padding: 16px 18px;
+  margin: 16px 0;
+  border: 1px solid var(--card-line);
+  border-left: 1px solid var(--card-line);
+  border-radius: 18px;
+  background: var(--card-bg);
+  box-shadow: var(--card-shadow);
+  font-size: 14px;
+}
+.eval-status {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.eval-status img {
+  flex: none;
+  image-rendering: pixelated;
+}
+
+/* Your evaluations: cards with room around them */
+.evaluation-jobs {
+  display: grid;
+  gap: 14px;
+  margin-top: 8px;
+}
+.evaluation-jobs article.eval-job {
+  padding: 22px 24px;
+  border-bottom: 1px solid var(--card-line);
+}
+.eval-log-panel pre {
+  border-radius: 14px;
+}
+
+.evaluation-login {
+  padding: 32px 30px;
+}
+
+/* Ranking rows are buttons, so they picked up the rounded button corners and
+   bent their separator lines; keep them square */
+.va-main .ranking-row {
+  border-radius: 0;
+  transition: background-color 0.2s ease;
+}
+
+/* Research: space between paper cards */
+.paper-list {
+  display: grid;
+  gap: 16px;
+}
+.va-main .paper-entry {
+  border-top: 1px solid var(--card-line);
+}
+
+/* ---------- Leaderboard ---------- */
+.lb-view-tabs,
+.lb-group-tabs {
+  border-radius: 999px;
+  border-color: var(--card-line);
+  background: var(--card-bg);
+  box-shadow: var(--card-shadow);
+}
+.va-main :is(.lb-view-tab, .lb-group-tab) {
+  padding: 7px 14px;
+  border-radius: 999px;
+  box-shadow: none;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+.va-main :is(.lb-view-tab, .lb-group-tab):hover {
+  color: var(--text);
+  background: var(--accent-dim);
+}
+.va-main :is(.lb-view-tab, .lb-group-tab).active {
+  background: var(--accent);
+  color: var(--bg);
+}
+.const-pills button {
+  transition: border-color 0.2s ease, background-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+.const-pills button:hover {
+  transform: translateY(-1px);
+}
+.lb-plot-row .lb-plot-bar {
+  transition: filter 0.2s ease;
+}
+.lb-plot-row:hover .lb-plot-bar {
+  filter: brightness(1.08) saturate(1.1);
+}
+
+/* ---------- Experiments table rows ---------- */
+.va-main .runs-table tbody tr {
+  transition: background-color 0.2s ease;
+}
+.va-main .runs-table tbody tr:hover {
+  background: var(--accent-dim);
+}
+
+@media (max-width: 640px) {
+  .eval-section,
+  .eval-section:first-child,
+  .eval-setup {
+    padding: 20px 18px;
+  }
+  .va-main :is(.results-explorer:not(.home-tradeoff), .lb-plot, .paper-entry) {
+    padding: 18px 16px;
+  }
+  .eval-tabs {
+    display: flex;
+    overflow-x: auto;
+  }
+}

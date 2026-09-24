@@ -2,10 +2,12 @@ import { pageMetadata } from '@/lib/metadata';
 import './globals.css';
 import './research.css';
 import './bands.css';
+import './pages.css';
 import type { Metadata, Viewport } from 'next';
 import { Space_Grotesk, JetBrains_Mono } from 'next/font/google';
 import { Header } from '@/components/Header';
 import { SiteFooter } from '@/components/SiteFooter';
+import { PixelHills } from '@/components/PixelHills';
 
 const spaceGrotesk = Space_Grotesk({
   subsets: ['latin'],
@@ -59,6 +61,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body>
         <a className="skip-link" href="#main-content">Skip to content</a>
+        {/* Faint pixel landscape behind the top of every inner page; the home hero draws its own */}
+        <PixelHills variant="hero" className="page-hills" />
         <Header />
         <main id="main-content" className="va-main">{children}</main>
         <SiteFooter />
