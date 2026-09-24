@@ -348,3 +348,29 @@ body:has(.arena-home) .page-hills {
 .va-main .eval-fields label > button:hover {
   color: var(--accent-hover);
 }
+
+/* Collection coverage: a compact status card */
+.va-main .collection-coverage {
+  padding: 14px 18px;
+  border-radius: 16px;
+}
+.va-main .collection-coverage h2 {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+  margin: 0 0 4px;
+}
+.va-main .collection-coverage p {
+  margin: 2px 0;
+  line-height: 1.5;
+}
+.va-main .collection-coverage .coverage-headline {
+  font-size: 15px;
+}
+.va-main .collection-coverage .card-caption {
+  font-size: 12px;
+  margin: 0;
+}
+.va-main .coverage-actions:empty {
+  display: none;
+}
