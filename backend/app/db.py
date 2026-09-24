@@ -6,7 +6,10 @@ from uuid import uuid4
 from sqlalchemy import (BigInteger, Boolean, Column, Integer, JSON, MetaData, String,
                         Table, Text, UniqueConstraint, create_engine, event, select, update)
 
+from .governance import GovernanceStore, Policy, tables, enforce, policy_data
+
 metadata = MetaData()
+members, policy, audit = tables(metadata)
 accounts = Table('va_accounts', metadata,
     Column('user_id', String(36), primary_key=True),
     Column('credits', Integer, nullable=False, default=0),
@@ -41,7 +44,7 @@ class Conflict(Exception): pass
 class Forbidden(Exception): pass
 
 
-class Store:
+class Store(GovernanceStore):
     def __init__(self, url):
         self.engine = create_engine(url, pool_pre_ping=True)
         if self.engine.dialect.name == 'sqlite':
@@ -54,9 +57,15 @@ class Store:
 
     def initialize(self):
         metadata.create_all(self.engine)
+        with self.engine.begin() as c:
+            if self.engine.dialect.name == 'postgresql':
+                from sqlalchemy.dialects.postgresql import insert
+            else:
+                from sqlalchemy.dialects.sqlite import insert
+            c.execute(insert(policy).values(id=1,version=1,data=policy_data(Policy())).on_conflict_do_nothing(index_elements=['id']))
         if self.engine.dialect.name == 'postgresql':
             with self.engine.begin() as c:
-                for table in (accounts, jobs, ledger, presentation, credentials):
+                for table in (accounts, jobs, ledger, presentation, credentials, members, policy, audit):
                     c.exec_driver_sql(f'ALTER TABLE {table.name} ENABLE ROW LEVEL SECURITY')
                     c.exec_driver_sql(f'REVOKE ALL ON {table.name} FROM PUBLIC, anon, authenticated')
 
@@ -82,6 +91,12 @@ class Store:
                 c.execute(accounts.insert().values(user_id=user_id, credits=amount))
             c.execute(ledger.insert().values(id=str(uuid4()), user_id=user_id, delta=amount, reason='grant', created_at=int(time.time())))
 
+        # The trusted CLI grant command enables a new account; web grants use admin_grant.
+        if not self.member(user_id):
+            self.ensure_member(user_id)
+            with self.engine.begin() as c:
+                c.execute(update(members).where(members.c.user_id==user_id).values(status='approved'))
+
     def balance(self, user_id):
         with self.engine.connect() as c:
             row = c.execute(select(accounts).where(accounts.c.user_id == user_id)).mappings().first()
@@ -89,22 +104,21 @@ class Store:
 
     def submit(self, user_id, key, digest, config, encrypted_credentials=None):
         with self.engine.begin() as c:
+            p=c.execute(select(policy).where(policy.c.id==1).with_for_update()).mappings().one()['data']
+            member=c.execute(select(members).where(members.c.user_id==user_id).with_for_update()).mappings().first()
+            if not member or member['status']!='approved': raise Forbidden('Account approval is required before running evaluations')
+            if not p['submissions_enabled']: raise Forbidden('New evaluations are temporarily paused')
+            limits=member['limits'] or p['limits']
+            enforce(config,limits)
             account = c.execute(select(accounts).where(accounts.c.user_id == user_id).with_for_update()).mappings().first()
             own_keys = config.get('funding') == 'own_keys'
-            if not account and own_keys:
-                if self.engine.dialect.name == 'postgresql':
-                    from sqlalchemy.dialects.postgresql import insert
-                else:
-                    from sqlalchemy.dialects.sqlite import insert
-                c.execute(insert(accounts).values(user_id=user_id, credits=0, enabled=True).on_conflict_do_nothing(index_elements=['user_id']))
-                account = c.execute(select(accounts).where(accounts.c.user_id == user_id).with_for_update()).mappings().one()
             if not account or not account['enabled']: raise Forbidden('Account is not enabled for evaluations')
             prior = c.execute(select(jobs).where(jobs.c.user_id == user_id, jobs.c.idempotency_key == key)).mappings().first()
             if prior:
                 if prior['request_hash'] != digest: raise Conflict('Idempotency key already used for another request')
                 return dict(prior)
             outstanding = c.execute(select(jobs.c.id).where(jobs.c.user_id == user_id, jobs.c.state.in_(('queued', *ACTIVE)))).all()
-            if len(outstanding) >= 2: raise Conflict('At most two outstanding evaluations per user')
+            if len(outstanding) >= limits['max_outstanding_jobs']: raise Conflict('Outstanding evaluation limit reached')
             reserve = 0 if own_keys else config['max_runtime_seconds']
             if account['credits'] < reserve: raise Forbidden('Insufficient execution credits')
             job_id = str(uuid4()); now = int(time.time())

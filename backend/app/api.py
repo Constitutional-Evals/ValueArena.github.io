@@ -16,7 +16,8 @@ from .config import settings
 from .db import ACTIVE, TERMINAL, Conflict, Forbidden, Store
 from .models import EvaluationRequest, WorkerFinish, WorkerUpdate, VisibilityUpdate
 from .model_resolution import resolve_models, openrouter_models, verify_provider_keys
-from .advanced import AdvancedSpec
+from .advanced import AdvancedSpec, merge_options
+from .governance import PolicyUpdate, MemberUpdate, CreditGrant, Policy, Limits, enforce
 from .spec import build_spec
 from .secrets import encrypt
 from .results import ResultSummary, ResultBatch
@@ -59,7 +60,62 @@ def create_app(config=None, store=None, auth=None, storage=None):
     async def forbidden(_, exc): return JSONResponse({'detail': str(exc)}, status_code=403)
 
     def user(authorization: str | None = Header(default=None)):
-        return auth.user(bearer(authorization))
+        token=bearer(authorization)
+        identity=auth.identity(token) if hasattr(auth,'identity') else {'id':auth.user(token)}
+        user_id=identity['id']
+        db.ensure_member(user_id,identity.get('email',''),identity.get('username',''),bootstrap=user_id in cfg.admin_user_ids.split(','))
+        return user_id
+
+    def administrator(user_id=Depends(user)):
+        member=db.member(user_id)
+        if not member or member['role']!='admin' or member['status']!='approved':
+            raise HTTPException(403,'Administrator access required')
+        return user_id
+
+    def effective_config(incoming,user_id):
+        config=incoming.model_dump(exclude={'openrouter_key','runpod_key'})
+        defaults=db.policy()['policy']['spec_defaults']
+        overrides=incoming.advanced_spec.model_dump(exclude_unset=True,exclude_none=True)
+        merged=merge_options(defaults,overrides)
+        try:
+            advanced=AdvancedSpec.model_validate(merged)
+            advanced.validate_panel(incoming.models,incoming.scenarios,incoming.scenario_count,incoming.criteria)
+        except (ValueError,ValidationError):
+            raise HTTPException(422,'Spec overrides conflict with site defaults or model panel') from None
+        config['advanced_spec']=advanced.model_dump(exclude_unset=True,exclude_none=True)
+        enforce(config,db.effective_limits(user_id))
+        return config
+
+    @app.get('/admin')
+    def admin_data(actor=Depends(administrator)):
+        return db.admin_snapshot() | {'policy_schema':Policy.model_json_schema(),'limits_schema':Limits.model_json_schema()}
+
+    @app.put('/admin/policy')
+    def admin_policy(incoming:PolicyUpdate,actor=Depends(administrator)):
+        return db.set_policy(actor,incoming)
+
+    @app.put('/admin/members/{member_id}')
+    def admin_member(member_id:UUID,incoming:MemberUpdate,actor=Depends(administrator)):
+        return db.set_member(actor,str(member_id),incoming)
+
+    @app.post('/admin/members/{member_id}/credits')
+    def admin_credit(member_id:UUID,incoming:CreditGrant,actor=Depends(administrator)):
+        db.admin_grant(actor,str(member_id),incoming)
+        return db.balance(str(member_id))
+
+    @app.get('/admin/evaluations')
+    def admin_jobs(actor=Depends(administrator)):
+        return [public_job(j) | {'user_id':j['user_id']} for j in db.list()[:200]]
+
+    @app.post('/admin/evaluations/{job_id}/cancel')
+    def admin_cancel(job_id:UUID,actor=Depends(administrator)):
+        job=db.get(str(job_id))
+        if not job: raise HTTPException(404,'Evaluation not found')
+        db.finish(str(job_id),'cancelled','admin_cancelled')
+        if job['state']=='queued':
+            db.settle(str(job_id)); db.forget_credentials(str(job_id))
+        db.record_admin(actor,'cancel',str(job_id),{})
+        return public_job(db.get(str(job_id)))
 
     def owned(job_id, user_id):
         job = db.get(str(job_id))
@@ -95,20 +151,23 @@ def create_app(config=None, store=None, auth=None, storage=None):
             'reflection': {'max_tokens': 2048, 'temperature': 0.2, 'per_model': {}},
             'direct_rating': {'max_tokens': 512, 'temperature': 0, 'per_model': {}},
         }
-        return {'defaults': defaults, 'schema': AdvancedSpec.model_json_schema()}
+        return {'defaults':merge_options(defaults,db.policy()['policy']['spec_defaults']), 'schema':AdvancedSpec.model_json_schema()}
 
     @app.post('/spec-preview')
     def spec_preview(incoming: EvaluationRequest, user_id=Depends(user)):
+        if db.member(user_id)['status']!='approved': raise HTTPException(403,'Account approval required')
         import pprint
-        config = incoming.model_dump(exclude={'openrouter_key', 'runpod_key'})
-        config['advanced_spec'] = incoming.advanced_spec.model_dump(exclude_unset=True, exclude_none=True)
+        config = effective_config(incoming,user_id)
         config['model_refs'] = resolve_models(incoming, catalog)
         spec = build_spec(config, '.')
         return {'spec': spec, 'python': 'RUN_SPEC = ' + pprint.pformat(spec, sort_dicts=False) + '\n'}
 
     @app.get('/account')
     def account(user_id=Depends(user)):
-        return db.balance(user_id) | {'credit_unit': 'reserved execution second; not currency'}
+        member=db.member(user_id)
+        return db.balance(user_id) | member | {'enabled':member['status']=='approved' and db.balance(user_id)['enabled'],
+            'limits':db.effective_limits(user_id),'submissions_enabled':db.policy()['policy']['submissions_enabled'],
+            'credit_unit':'execution seconds; not currency'}
 
     @app.post('/evaluations', status_code=202)
     async def submit(request: Request, user_id=Depends(user), idempotency_key: str = Header(alias='Idempotency-Key')):
@@ -123,6 +182,9 @@ def create_app(config=None, store=None, auth=None, storage=None):
             issues = exc.errors(include_input=False, include_url=False)
             detail = '; '.join('.'.join(map(str, e['loc'])) + ': ' + e['msg'] for e in issues[:3])
             raise HTTPException(422, detail) from None
+        if db.member(user_id)['status']!='approved': raise HTTPException(403,'Your account is awaiting approval or has been suspended')
+        if not db.policy()['policy']['submissions_enabled']: raise HTTPException(403,'New evaluations are temporarily paused')
+        config=effective_config(incoming,user_id)
         from starlette.concurrency import run_in_threadpool
         refs = await run_in_threadpool(resolve_models, incoming, catalog)
         keys = {name: getattr(incoming, name).get_secret_value() for name in ('openrouter_key', 'runpod_key')}
@@ -130,10 +192,8 @@ def create_app(config=None, store=None, auth=None, storage=None):
             raise HTTPException(422, 'Supply both your OpenRouter and RunPod API keys')
         if incoming.funding == 'own_keys':
             await run_in_threadpool(verify_provider_keys, keys)
-        if incoming.funding == 'service' and (incoming.gpu_type != cfg.runpod_gpu_type or incoming.disk_gb != cfg.runpod_disk_gb):
+        if incoming.funding == 'service' and db.member(user_id)['role']!='admin' and (incoming.gpu_type != cfg.runpod_gpu_type or incoming.disk_gb != cfg.runpod_disk_gb):
             raise HTTPException(422, 'Custom compute requires your own provider keys')
-        config = incoming.model_dump(exclude={'openrouter_key', 'runpod_key'})
-        config['advanced_spec'] = incoming.advanced_spec.model_dump(exclude_unset=True, exclude_none=True)
         digest = hashlib.sha256(json.dumps(config, sort_keys=True).encode()).hexdigest()
         # Snapshot the catalog: queued jobs do not silently change if administrators update it.
         config['model_refs'] = refs
@@ -174,6 +234,8 @@ def create_app(config=None, store=None, auth=None, storage=None):
     @app.post('/evaluations/{job_id}/visibility')
     def visibility(job_id: UUID, update: VisibilityUpdate, user_id=Depends(user)):
         job = owned(job_id, user_id)
+        if update.visibility == 'public' and (db.member(user_id)['status']!='approved' or not db.effective_limits(user_id)['allow_public_results']):
+            raise HTTPException(403,'Public results are disabled for this account')
         if update.visibility == 'public' and (job['state'] != 'succeeded' or not db.get_presentation(job['id'], 'summary')):
             raise HTTPException(409, 'Only completed results can be published')
         db.visibility(job['id'], update.visibility)

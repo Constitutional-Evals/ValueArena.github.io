@@ -13,7 +13,10 @@ def main():
     grant.add_argument('seconds', type=int)
     args = parser.parse_args()
     store = Store(settings().database_url)
-    if args.command == 'init-db': store.initialize()
+    if args.command == 'init-db':
+        store.initialize()
+        for user_id in settings().admin_user_ids.split(','):
+            if user_id.strip(): store.ensure_member(str(UUID(user_id.strip())),bootstrap=True)
     elif args.command == 'grant': store.grant(str(args.user_id), args.seconds)
 
 

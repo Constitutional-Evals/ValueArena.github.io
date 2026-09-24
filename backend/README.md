@@ -305,3 +305,38 @@ extension source files, arbitrary input/output paths, executable Python, and
 external upload destinations are not accepted. Models and source data are set in
 the form. Collection/analysis stay enabled, and publication and coverage checks
 remain service-managed. `/spec-options` exposes defaults and the JSON schema.
+
+### Administration and approvals
+
+Set `ADMIN_USER_IDS` on the API to a comma-separated list of verified Supabase user
+UUIDs. Do not use client metadata, usernames, or an email supplied by the browser.
+`python -m app.admin init-db` creates the additional member, policy, and audit tables
+and bootstraps those IDs as approved administrators. These tables have RLS enabled
+and no access for Supabase browser roles. Existing users request workspace access
+on their next authenticated request; existing CLI-granted accounts remain enabled
+in newly initialized test/development stores.
+
+Open `/admin/` after signing in. Administrators can approve, reject, or suspend
+participants; grant execution seconds; edit default and per-person limits; change
+supported spec defaults; pause submissions or queue dispatch; set concurrency; and
+cancel jobs. Credit grants accept idempotency IDs; policy and account edits require
+matching versions. Changes are recorded in the admin audit table. An administrator
+cannot suspend an admin through this interface.
+
+Approval is required by default, including for personal-provider-key jobs. Turning
+approval off affects **new** access requests, not existing pending/suspended users.
+Supabase still handles email registration and verification; pending registrations
+have no evaluation access. Initial credits apply only to automatically approved
+new accounts. Approve and grant credits separately for manually reviewed accounts.
+
+Credits measure reserved runtime in seconds, not dollars. They do not cap external
+OpenRouter/RunPod spending. Application limits are enforced after merging spec
+overrides and again during the transactional credit reservation. Upper schema
+ceilings remain finite; the hosted runner still excludes executable Python,
+unmanaged filesystem paths, and unsupported modes. Queued jobs keep their compiled
+spec snapshots. Suspending an account cancels its queued work during scheduling;
+use Cancel evaluation to stop an already-running job. GPU cleanup continues while
+submissions or dispatch are paused.
+
+Rollout order: deploy the API with `init-db` as its pre-deploy command, then deploy
+the scheduler against the initialized schema. Keep their code revisions aligned.

@@ -35,19 +35,19 @@ class EvaluationRequest(BaseModel):
     openrouter_key: SecretStr = Field(default=SecretStr(''), max_length=512)
     runpod_key: SecretStr = Field(default=SecretStr(''), max_length=512)
     gpu_type: Literal['NVIDIA A40', 'NVIDIA RTX A6000', 'NVIDIA GeForce RTX 4090', 'NVIDIA A100 80GB PCIe', 'NVIDIA H100 80GB HBM3'] = 'NVIDIA A40'
-    disk_gb: int = Field(default=100, ge=50, le=500)
+    disk_gb: int = Field(default=100, ge=50, le=1000)
     engine: Literal['native', 'inspect'] = 'native'
     name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=120)]
-    models: list[ModelID] = Field(min_length=2, max_length=8)
+    models: list[ModelID] = Field(min_length=2, max_length=64)
     criteria: list[Criterion] = Field(min_length=1, max_length=64)
     constitution_name: Annotated[str, StringConstraints(max_length=100)] = 'Custom'
-    custom_models: list[CustomModel] = Field(default_factory=list, max_length=8)
+    custom_models: list[CustomModel] = Field(default_factory=list, max_length=64)
     scenario_source: Literal['airiskdilemmas', 'custom'] = 'airiskdilemmas'
-    scenario_count: int = Field(default=200, ge=1, le=200)
+    scenario_count: int = Field(default=200, ge=1, le=3000)
     visibility: Literal['private', 'public'] = 'private'
-    scenarios: list[Text] = Field(default_factory=list, max_length=200)
-    max_runtime_seconds: int = Field(default=3600, ge=300, le=14400)
-    response_tokens: int = Field(default=1024, ge=128, le=4096)
+    scenarios: list[Text] = Field(default_factory=list, max_length=3000)
+    max_runtime_seconds: int = Field(default=3600, ge=300, le=86400)
+    response_tokens: int = Field(default=1024, ge=128, le=32768)
     seed: int = Field(default=42, ge=0, le=2**31-1)
 
     @model_validator(mode='after')
