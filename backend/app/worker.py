@@ -1,6 +1,7 @@
 """RunPod entrypoint. Has only a job-scoped API token, never DB/storage admin keys."""
 import json
 import os
+import re
 from pathlib import Path
 import signal
 import subprocess
@@ -29,11 +30,54 @@ class WorkerClient:
         response.raise_for_status()
         return response.json()
 
+    def put_result(self, part, data):
+        response = httpx.put(self.root+'/results/'+part, headers=self.headers, json=data, timeout=60)
+        response.raise_for_status()
+
     def upload(self, path):
         with path.open('rb') as source:
             response = httpx.put(self.root+'/artifacts', headers={**self.headers, 'Content-Type': 'application/gzip'},
                 content=source, timeout=180)
         response.raise_for_status()
+
+
+def redact(value):
+    for key, secret in os.environ.items():
+        if secret and (key.endswith(('_KEY', '_TOKEN', '_SECRET')) or key == 'DATABASE_URL'):
+            value = value.replace(secret, '[REDACTED]')
+    value = re.sub(r'Bearer\s+[A-Za-z0-9._-]+', 'Bearer [REDACTED]', value, flags=re.I)
+    return value
+
+
+def log_tail(directory):
+    path = directory/'execution.log'
+    if not path.exists(): return ''
+    with path.open('rb') as source:
+        source.seek(max(0, path.stat().st_size-256000))
+        value = source.read().decode('utf-8', errors='replace')
+    return redact(value)[-64000:]
+
+
+def publish_results(client, directory):
+    count = 0; batch_count = 0; batch = []
+    path = directory/'evaluations.jsonl'
+    if path.exists():
+        with path.open() as source:
+            for line in source:
+                if not line.strip(): continue
+                row = json.loads(redact(line))
+                batch.append({'scenario': row.get('scenario', ''), 'scenario_index': row.get('scenario_index', -1),
+                    'model': row.get('evaluee', {}).get('name', ''), 'judge': row.get('judge', {}).get('name', ''),
+                    'response': row.get('response', ''), 'reflection': row.get('reflection', ''),
+                    'judgment': row.get('judgment_raw', '')})
+                count += 1
+                if len(batch) == 25:
+                    client.put_result(f'records-{batch_count}', {'records': batch})
+                    batch = []; batch_count += 1
+    if batch:
+        client.put_result(f'records-{batch_count}', {'records': batch}); batch_count += 1
+    summary = json.loads((directory/'analysis'/'summary.json').read_text())
+    client.put_result('summary', {'summary': summary, 'record_count': count, 'batch_count': batch_count})
 
 
 def bundle(directory, target):
@@ -46,6 +90,7 @@ def bundle(directory, target):
 
 def execute_stage(command, directory, abort, deadline):
     env = {k: v for k, v in os.environ.items() if not k.startswith('VA_')}
+    env['PYTHONUNBUFFERED'] = '1'
     with (directory/'execution.log').open('ab') as log:
         process = subprocess.Popen(command, stdout=log, stderr=subprocess.STDOUT, env=env, start_new_session=True)
         try:
@@ -65,7 +110,7 @@ def execute_stage(command, directory, abort, deadline):
 
 def run(client, workdir, execute=execute_stage):
     job = client.get(); config = job['config']
-    directory = Path(workdir)/job['id']; spec = write_spec(config, directory)
+    directory = Path(workdir)/job['id']; directory.mkdir(parents=True, exist_ok=True)
     deadline = job['deadline_at']
     abort = threading.Event(); done = threading.Event()
     state = {'stage': 'starting'}
@@ -74,7 +119,7 @@ def run(client, workdir, execute=execute_stage):
         last_ok = time.monotonic()
         while not done.is_set():
             try:
-                client.post('heartbeat', {'stage': state['stage']})
+                client.post('heartbeat', {'stage': state['stage'], 'log': log_tail(directory)})
                 last_ok = time.monotonic()
             except httpx.HTTPStatusError as exc:
                 if exc.response.status_code in (401, 403, 404, 409): abort.set(); return
@@ -86,6 +131,7 @@ def run(client, workdir, execute=execute_stage):
     pulse_thread = threading.Thread(target=pulse, daemon=True); pulse_thread.start()
     error = None
     try:
+        spec = write_spec(config, directory)
         for phase in ('collecting', 'analyzing'):
             state['stage'] = phase
             client.post('heartbeat', {'stage': phase})
@@ -100,11 +146,9 @@ def run(client, workdir, execute=execute_stage):
             # Redact known provider secrets from plain logs before sharing artifacts.
             log = directory/'execution.log'
             if log.exists():
-                value = log.read_text(errors='replace')
-                for key in ('OPENROUTER_API_KEY', 'HF_TOKEN'):
-                    secret = os.environ.get(key)
-                    if secret: value = value.replace(secret, '[REDACTED]')
-                log.write_text(value)
+                log.write_text(redact(log.read_text(errors='replace')))
+            client.post('heartbeat', {'stage': 'uploading', 'log': log_tail(directory)})
+            if error is None: publish_results(client, directory)
             (directory/'worker-result.json').write_text(json.dumps({'engine': config['engine'], 'error_code': error}))
             archive = directory.parent/(job['id']+'.tar.gz')
             bundle(directory, archive)

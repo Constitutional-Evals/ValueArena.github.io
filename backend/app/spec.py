@@ -10,14 +10,20 @@ def write_spec(config, directory):
     request = EvaluationRequest.model_validate({k: v for k, v in config.items() if k != 'model_refs'})
     root = Path(directory).resolve()
     root.mkdir(parents=True, exist_ok=True)
-    (root/'scenarios.json').write_text(json.dumps(request.scenarios))
+    scenarios = request.scenarios
+    if request.scenario_source == 'airiskdilemmas':
+        import sys, os
+        sys.path.insert(0, os.environ.get('EIGENBENCH_ROOT', '/opt/eigenbench'))
+        from pipeline.config.airisk import load_airisk_scenarios
+        scenarios = load_airisk_scenarios()[:request.scenario_count]
+    (root/'scenarios.json').write_text(json.dumps(scenarios))
     (root/'constitution.json').write_text(json.dumps(request.criteria))
     spec = {
         'name': request.name,
         'models': {key: config['model_refs'][key] for key in request.models},
         'evaluation': {'mode': 'direct_rating', 'direct_rating': {
             'include_self': True, 'normalization': 'zscore_softmax'}},
-        'dataset': {'path': str(root/'scenarios.json'), 'count': len(request.scenarios)},
+        'dataset': {'path': str(root/'scenarios.json'), 'count': len(scenarios)},
         'constitution': {'path': str(root/'constitution.json'), 'num_criteria': len(request.criteria)},
         'collection': {'enabled': True, 'sampler_mode': 'all_to_all', 'sampler_seed': request.seed,
             'evaluations_path': str(root/'evaluations.jsonl'),

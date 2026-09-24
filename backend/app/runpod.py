@@ -22,8 +22,8 @@ class RunPod:
                'OPENROUTER_API_KEY': self.cfg.openrouter_api_key,
                'HF_TOKEN': self.cfg.hf_token}
         payload = {'name': self.name(job['id']), 'imageName': self.cfg.worker_image,
-            'cloudType': 'SECURE', 'computeType': 'GPU', 'gpuTypeIds': [self.cfg.runpod_gpu_type],
-            'gpuCount': self.cfg.runpod_gpu_count, 'containerDiskInGb': self.cfg.runpod_disk_gb,
+            'cloudType': 'SECURE', 'computeType': 'GPU', 'gpuTypeIds': [job['config'].get('gpu_type', self.cfg.runpod_gpu_type)],
+            'gpuCount': self.cfg.runpod_gpu_count, 'containerDiskInGb': job['config'].get('disk_gb', self.cfg.runpod_disk_gb),
             'volumeInGb': 0, 'interruptible': False, 'ports': [], 'env': env}
         response = self.client.post('/pods', json=payload)
         response.raise_for_status()

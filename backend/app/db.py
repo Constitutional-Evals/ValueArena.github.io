@@ -26,6 +26,13 @@ ledger = Table('va_credit_ledger', metadata,
     Column('id', String(36), primary_key=True), Column('user_id', String(36), nullable=False),
     Column('job_id', String(36)), Column('delta', Integer, nullable=False),
     Column('reason', String(32), nullable=False), Column('created_at', BigInteger, nullable=False))
+presentation = Table('va_presentation', metadata,
+    Column('job_id', String(36), primary_key=True),
+    Column('name', String(40), primary_key=True),
+    Column('data', JSON, nullable=False))
+credentials = Table('va_job_credentials', metadata,
+    Column('job_id', String(36), primary_key=True),
+    Column('encrypted', Text, nullable=False))
 ACTIVE = ('provisioning', 'running')
 TERMINAL = ('succeeded', 'failed', 'cancelled')
 
@@ -49,7 +56,7 @@ class Store:
         metadata.create_all(self.engine)
         if self.engine.dialect.name == 'postgresql':
             with self.engine.begin() as c:
-                for table in (accounts, jobs, ledger):
+                for table in (accounts, jobs, ledger, presentation, credentials):
                     c.exec_driver_sql(f'ALTER TABLE {table.name} ENABLE ROW LEVEL SECURITY')
                     c.exec_driver_sql(f'REVOKE ALL ON {table.name} FROM PUBLIC, anon, authenticated')
 
@@ -80,9 +87,17 @@ class Store:
             row = c.execute(select(accounts).where(accounts.c.user_id == user_id)).mappings().first()
             return dict(row) if row else {'credits': 0, 'enabled': False}
 
-    def submit(self, user_id, key, digest, config):
+    def submit(self, user_id, key, digest, config, encrypted_credentials=None):
         with self.engine.begin() as c:
             account = c.execute(select(accounts).where(accounts.c.user_id == user_id).with_for_update()).mappings().first()
+            own_keys = config.get('funding') == 'own_keys'
+            if not account and own_keys:
+                if self.engine.dialect.name == 'postgresql':
+                    from sqlalchemy.dialects.postgresql import insert
+                else:
+                    from sqlalchemy.dialects.sqlite import insert
+                c.execute(insert(accounts).values(user_id=user_id, credits=0, enabled=True).on_conflict_do_nothing(index_elements=['user_id']))
+                account = c.execute(select(accounts).where(accounts.c.user_id == user_id).with_for_update()).mappings().one()
             if not account or not account['enabled']: raise Forbidden('Account is not enabled for evaluations')
             prior = c.execute(select(jobs).where(jobs.c.user_id == user_id, jobs.c.idempotency_key == key)).mappings().first()
             if prior:
@@ -90,12 +105,14 @@ class Store:
                 return dict(prior)
             outstanding = c.execute(select(jobs.c.id).where(jobs.c.user_id == user_id, jobs.c.state.in_(('queued', *ACTIVE)))).all()
             if len(outstanding) >= 2: raise Conflict('At most two outstanding evaluations per user')
-            reserve = config['max_runtime_seconds']
+            reserve = 0 if own_keys else config['max_runtime_seconds']
             if account['credits'] < reserve: raise Forbidden('Insufficient execution credits')
             job_id = str(uuid4()); now = int(time.time())
             c.execute(update(accounts).where(accounts.c.user_id == user_id).values(credits=account['credits'] - reserve))
             c.execute(jobs.insert().values(id=job_id, user_id=user_id, idempotency_key=key, request_hash=digest,
                 config=config, state='queued', created_at=now, reserved_credits=reserve))
+            if encrypted_credentials:
+                c.execute(credentials.insert().values(job_id=job_id, encrypted=encrypted_credentials))
             c.execute(ledger.insert().values(id=str(uuid4()), user_id=user_id, job_id=job_id, delta=-reserve, reason='reserve', created_at=now))
             return dict(c.execute(select(jobs).where(jobs.c.id == job_id)).mappings().one())
 
@@ -131,3 +148,34 @@ class Store:
             c.execute(update(accounts).where(accounts.c.user_id == job['user_id']).values(credits=account['credits']+refund))
             c.execute(update(jobs).where(jobs.c.id == job_id).values(charged_credits=used, cleanup_done=True))
             c.execute(ledger.insert().values(id=str(uuid4()), user_id=job['user_id'], job_id=job_id, delta=refund, reason='release', created_at=int(time.time())))
+
+    def put_presentation(self, job_id, name, data):
+        with self.engine.begin() as c:
+            # Lock the job to serialize retries and publication updates.
+            c.execute(select(jobs.c.id).where(jobs.c.id == job_id).with_for_update()).first()
+            c.execute(presentation.delete().where(presentation.c.job_id == job_id, presentation.c.name == name))
+            c.execute(presentation.insert().values(job_id=job_id, name=name, data=data))
+
+    def get_presentation(self, job_id, name):
+        with self.engine.connect() as c:
+            return c.execute(select(presentation.c.data).where(presentation.c.job_id == job_id, presentation.c.name == name)).scalar()
+
+    def visibility(self, job_id, value):
+        with self.engine.begin() as c:
+            row = c.execute(select(jobs).where(jobs.c.id == job_id).with_for_update()).mappings().one()
+            config = dict(row['config']); config['visibility'] = value
+            c.execute(update(jobs).where(jobs.c.id == job_id).values(config=config))
+
+    def job_credentials(self, job_id):
+        with self.engine.connect() as c:
+            return c.execute(select(credentials.c.encrypted).where(credentials.c.job_id == job_id)).scalar()
+
+    def forget_credentials(self, job_id):
+        with self.engine.begin() as c:
+            c.execute(credentials.delete().where(credentials.c.job_id == job_id))
+
+    def public_jobs(self):
+        with self.engine.connect() as c:
+            query = select(jobs).where(jobs.c.state == 'succeeded',
+                jobs.c.config['visibility'].as_string() == 'public').order_by(jobs.c.created_at.desc()).limit(100)
+            return [dict(row) for row in c.execute(query).mappings()]
