@@ -43,6 +43,17 @@ def test_only_one_scheduler_holds_leadership(store):
 
 def test_browser_roles_cannot_read_job_tables(store):
     with store.engine.begin() as c:
-        for table in ('va_accounts', 'va_jobs', 'va_credit_ledger'):
+        for table in ('va_accounts', 'va_jobs', 'va_credit_ledger', 'va_presentation', 'va_job_credentials'):
             assert not c.execute(text('SELECT has_table_privilege(:role, :table, :permission)'),
                 {'role': 'authenticated', 'table': table, 'permission': 'SELECT'}).scalar()
+
+
+def test_new_own_key_account_concurrent_retries(store):
+    user = str(uuid4())
+    config = {'max_runtime_seconds': 600, 'funding': 'own_keys'}
+    def submit(_): return store.submit(user, 'retry', 'same', config, 'encrypted-test')['id']
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        ids = list(pool.map(submit, range(4)))
+    assert len(set(ids)) == 1
+    assert store.balance(user)['credits'] == 0
+    assert store.job_credentials(ids[0]) == 'encrypted-test'

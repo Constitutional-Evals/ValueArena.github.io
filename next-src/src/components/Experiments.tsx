@@ -8,6 +8,7 @@ import {
   useState,
   type CSSProperties,
 } from 'react';
+import { evaluationAPI, type EvaluationJob } from '@/lib/evaluation';
 import { GIT_REPO } from '@/lib/config';
 import { fetchIndex } from '@/lib/hf';
 import { collectionTypeLabel, normalizeEvaluationMode } from '@/lib/protocol';
@@ -66,7 +67,8 @@ export function Experiments() {
     let cancelled = false;
     (async () => {
       try {
-        const index = await fetchIndex();
+        const [index, hosted] = await Promise.all([fetchIndex(), evaluationAPI ? fetch(evaluationAPI + '/experiments', { cache: 'no-store' }).then(r => r.ok ? r.json() as Promise<EvaluationJob[]> : []).catch(() => []) : Promise.resolve([])]);
+        const hostedRuns: RunRow[] = hosted.map((r: EvaluationJob) => ({ slug: 'hosted/' + r.id, hosted_id: r.id, name: r.name, group: 'Community evaluations', constitution: r.constitution, scenario: `${r.scenario_count} scenarios`, models_count: r.models_count, timestamp: new Date(r.created_at * 1000).toISOString(), evaluation_mode: 'direct_rating' }));
         if (cancelled) return;
         const normalized: RunRow[] = (index.runs || []).map((r) => ({
           ...r,
@@ -74,7 +76,7 @@ export function Experiments() {
           scenario: (((r as RunRow).scenario as string | undefined) || '').replace(/^oct_/, ''),
           evaluation_mode: normalizeEvaluationMode(r.evaluation_mode),
         }));
-        setRuns(normalized);
+        setRuns([...hostedRuns, ...normalized]);
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e));
       }
@@ -471,7 +473,7 @@ function RunRowEl({ r, child }: { r: RunRow; child: boolean }) {
   return (
     <tr className={child ? 'child-row' : ''}>
       <td style={{ paddingLeft: child ? 32 : undefined }}>
-        <a className="run-name" href={`/run/?slug=${encodeURIComponent(r.slug)}`}>
+        <a className="run-name" href={r.hosted_id ? `/evaluation/?id=${encodeURIComponent(String(r.hosted_id))}` : `/run/?slug=${encodeURIComponent(r.slug)}`}>
           {displayName}
         </a>
       </td>

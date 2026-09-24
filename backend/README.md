@@ -1,14 +1,13 @@
 # ValueArena evaluation backend
 
 Automatic EigenBench jobs: Supabase login → FastAPI → durable PostgreSQL queue →
-RunPod worker → private results. Users choose `native` (default) or `inspect`.
+RunPod worker → private or published results. Users choose `native` (default) or `inspect`.
 No one has to launch each evaluation manually.
 
 ## What this version supports
 
-- A model panel selected from an administrator-maintained catalog; custom fine-tunes
-  can be added as pinned Hugging Face model/LoRA references.
-- User-written criteria and scenarios, 2–8 models, 1–12 criteria, 1–200 unique scenarios.
+- Preset models, searchable OpenRouter IDs, and public Hugging Face full models or LoRA adapters. Hugging Face revisions are resolved to immutable commits at submission.
+- Existing or custom constitutions, built-in deduplicated AIRiskDilemmas or uploaded JSONL scenarios, 2–8 models, 1–64 criteria, 1–200 unique scenarios.
 - Direct 1–10 ratings, all-to-all judging (each panel member responds **and** judges),
   followed by EigenBench analysis and 200 scenario bootstraps.
 - Native and Inspect collection engines, sharing the downstream analysis.
@@ -18,15 +17,13 @@ No one has to launch each evaluation manually.
   available logs, and analysis. Failed jobs preserve available artifacts; they do
   not bypass the existing coverage gate or become successful rankings.
 
-This is an initial implementation, not a deployed service. GPU image execution,
-Supabase, Railway, and RunPod must be smoke-tested after account setup. Unit and
+Changes to the GPU image and provider setup must be smoke-tested before large runs. Unit and
 integration tests use a real local database with simulated providers, not paid GPUs.
 The GPU dependency set is resolved at image build; use a tested immutable image
 for deployment. The source revision is pinned in `Dockerfile.worker`.
 
-Not included yet: payments, dollar-denominated billing, automatic public publishing,
-private results inside the existing public transcript viewer, separate responder/judge
-panels, arbitrary model architectures, and pairwise evaluation. Native and Inspect
+Not included yet: payments, dollar-denominated billing, separate responder/judge panels,
+multi-GPU inference, architectures unsupported by vLLM, and pairwise evaluation. Native and Inspect
 may produce different samples even with the same seed.
 
 ## 1. Supabase: accounts, database, private storage
@@ -46,7 +43,7 @@ may produce different samples even with the same seed.
    python -m app.admin init-db
    ```
 
-   Tables are `va_accounts`, `va_jobs`, and `va_credit_ledger`. The initializer
+   Tables are `va_accounts`, `va_jobs`, `va_credit_ledger`, `va_presentation`, and `va_job_credentials`. The initializer
    enables RLS and revokes browser-role grants. Access goes through the API;
    the server database connection must own these tables (the Supabase project
    database owner works). `init-db` is an initial schema bootstrap, not a general
@@ -158,9 +155,8 @@ Each job stores a snapshot of the selected model references.
 ```
 
 Use `kind: "base"` with `repo_id` and `revision` for full checkpoints. Configure
-an appropriate GPU/disk for the supported model sizes. The catalog is an operator
-boundary: validate architecture, adapter/base compatibility, and memory use before
-adding a model. This version uses one GPU per job and provisions it even for an API-only panel.
+an appropriate GPU/disk for the supported model sizes. For preset catalog entries, operators should validate architecture, adapter/base compatibility, and memory use before
+adding a model. Users can also supply custom public model IDs through the form. This version uses one GPU per job and provisions it even for an API-only panel.
 The native runner reads adapter configurations to size LoRA capacity, including
 the selected rank-128 composed adapter. Verify adapters against both engines before
 adding them. Increasing GPU count does not configure tensor parallelism.
@@ -215,3 +211,68 @@ Before opening access, perform a one-scenario native run and an Inspect run on t
 real deployed services, cancel a running run, and verify pod termination, private
 artifact access, actual coverage, and credit settlement. Check the selected
 worker image against the intended local model/adapter as well as API models.
+
+
+## Evaluation workspace
+
+`/evaluate/` has email/password login, account creation with a display username,
+email-link login, and password recovery. Authentication remains with Supabase;
+passwords never reach the evaluation API. Existing email-link users can set a
+password in **Account**. Include `https://valuearena.github.io/evaluate/` in the
+Supabase redirect allowlist and keep email confirmations enabled.
+
+The form starts with the Humor constitution and 200 unique AIRiskDilemmas questions.
+Users can choose any existing constitution, edit criteria, or upload JSONL:
+
+```jsonl
+{"scenario":"A colleague asks for help. What do you do?"}
+{"scenario":"Your team disagrees.\nHow would you respond?"}
+```
+
+Each line is a JSON object with one `scenario` string (a JSON string alone is also
+accepted). No surrounding array. The browser rejects empty text, duplicate
+questions, more than 200 scenarios, or oversized input. The API repeats these
+checks. Built-in AIRiskDilemmas is loaded by the worker using EigenBench's pinned,
+deduplicated loader; raw action rows are never treated as separate scenarios.
+
+**My provider keys** uses the user's OpenRouter and RunPod accounts, with a choice
+of one GPU and 50–500 GB temporary container storage. Both keys are required and
+verified before queueing. This mode needs no service credits. Service-funded
+jobs retain the operator GPU/storage defaults and existing credit checks.
+The worker and scheduler enforce a 60-minute default deadline; the form has no
+runtime input. GPU availability and model compatibility are still provider
+constraints. Hugging Face repositories must be public, ungated, and contain
+safetensors. No user Python or remote-code loading is enabled.
+
+Provider credentials are encrypted in `va_job_credentials` with Fernet using a
+domain-separated key derived from `WORKER_SECRET`. Keep that secret stable in the
+API and scheduler. Secrets never appear in job configuration, spec files, result
+pages, or artifacts. Only the OpenRouter key reaches the GPU worker; the RunPod
+key stays in the scheduler. Keys are erased after confirmed deletion, or immediate
+cancellation of an unstarted job. If provisioning outcome or cleanup is uncertain,
+the encrypted credentials remain available for reconciliation. Do not delete
+those credentials manually while a pod might still exist.
+
+Logs are redacted on the worker and sent with heartbeats every 15 seconds. The
+owner's page polls every 5 seconds and displays the latest 64 KB. Logs and archive
+downloads remain owner-only, including for published runs.
+
+Successful jobs upload a validated summary and batches of 25 transcript records.
+`/evaluation/?id=<uuid>` shows rankings, intervals, criteria, responses, reflections,
+and ratings for either private or public runs. Owners can select public visibility
+before a run or publish afterwards, and can make results private again. Public
+results appear in the existing Experiments list under **Community evaluations**.
+Publishing is through the evaluation API, not by modifying the Hugging Face dataset.
+Failed runs cannot be published as successful results or bypass coverage checks.
+
+### Deploying workspace changes
+
+1. Deploy the backend with `python -m app.admin init-db` as the pre-deploy command;
+   it creates the two additional tables and revokes browser database access.
+2. Build a new worker image from this revision and update the scheduler's
+   `WORKER_IMAGE` to its immutable digest. Existing images do not upload live logs
+   or browsable results.
+3. Deploy the frontend with the existing three `NEXT_PUBLIC_*` evaluation variables.
+4. Run a bounded native/Inspect smoke test with valid provider keys; verify logs,
+   result visibility, pod deletion, and credential removal. Local tests use fake
+   providers and do not establish GPU compatibility.

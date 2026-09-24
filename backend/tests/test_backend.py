@@ -198,6 +198,9 @@ def test_worker_lifecycle(service, tmp_path, engine, fail):
         def post(self, endpoint, data):
             response = api.post(f'/internal/jobs/{job_id}/{endpoint}', json=data, headers=worker_headers(cfg, job_id))
             response.raise_for_status(); return response.json()
+        def put_result(self, part, data):
+            response = api.put(f'/internal/jobs/{job_id}/results/{part}', json=data, headers=worker_headers(cfg, job_id))
+            response.raise_for_status()
         def upload(self, path):
             # Real private storage semantics, no external services or GPU charges.
             with tarfile.open(path) as archive:
@@ -210,7 +213,7 @@ def test_worker_lifecycle(service, tmp_path, engine, fail):
         phase = command[4]; phases.append(phase)
         if fail: raise RuntimeError('invalid ratings')
         if phase == 'analyzing':
-            (directory/'analysis').mkdir(); (directory/'analysis/summary.json').write_text('{}')
+            (directory/'analysis').mkdir(); (directory/'analysis/summary.json').write_text('[]')
     code = run(Client(), tmp_path/'work', execute)
     assert code == (1 if fail else 0)
     assert db.get(job_id)['state'] == ('failed' if fail else 'succeeded')
