@@ -1,6 +1,8 @@
 from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, StringConstraints, model_validator
 
+from .advanced import AdvancedSpec
+
 Text = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=8000)]
 Criterion = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=1000)]
 ModelID = Annotated[str, StringConstraints(pattern=r'^[a-zA-Z0-9_-]{1,64}$')]
@@ -28,6 +30,7 @@ class CustomModel(BaseModel):
 
 class EvaluationRequest(BaseModel):
     model_config = ConfigDict(extra='forbid')
+    advanced_spec: AdvancedSpec = Field(default_factory=AdvancedSpec)
     funding: Literal['service', 'own_keys'] = 'service'
     openrouter_key: SecretStr = Field(default=SecretStr(''), max_length=512)
     runpod_key: SecretStr = Field(default=SecretStr(''), max_length=512)
@@ -62,6 +65,7 @@ class EvaluationRequest(BaseModel):
                 raise ValueError(f'{key} must be unique')
         if sum(map(len, self.scenarios)) > 400_000:
             raise ValueError('Total scenario text exceeds 400,000 characters')
+        self.advanced_spec.validate_panel(self.models, self.scenarios, self.scenario_count, self.criteria)
         return self
 
 

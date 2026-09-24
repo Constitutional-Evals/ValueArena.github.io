@@ -105,7 +105,9 @@ def test_default_airisk_is_loaded_at_worker_once(service, monkeypatch, tmp_path)
     assert response.status_code == 202
     config = db.get(response.json()['id'])['config']
     write_spec(config, tmp_path)
-    assert json.loads((tmp_path/'scenarios.json').read_text()) == ['question one', 'question two']
+    assert json.loads((tmp_path/'scenarios.json').read_text()) == ['question one', 'question two', 'question three']
+    scope = {}; exec((tmp_path/'spec.py').read_text(), scope)
+    assert scope['RUN_SPEC']['dataset']['count'] == 2
 
 
 def test_own_provider_cleanup_uses_own_key_and_erases_only_after_deletion(service, monkeypatch):
