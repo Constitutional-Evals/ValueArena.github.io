@@ -47,7 +47,7 @@ class EvaluationRequest(BaseModel):
     visibility: Literal['private', 'public'] = 'private'
     scenarios: list[Text] = Field(default_factory=list)
     max_runtime_seconds: int | None = Field(default=None, ge=300)
-    response_tokens: int = Field(default=1024, ge=128)
+    response_tokens: int | None = Field(default=None, ge=1)
     seed: int = Field(default=42, ge=0, le=2**31-1)
 
     @model_validator(mode='after')

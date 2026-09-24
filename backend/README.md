@@ -7,7 +7,7 @@ No one has to launch each evaluation manually.
 ## What this version supports
 
 - Preset models, searchable OpenRouter IDs, and public Hugging Face full models or LoRA adapters. Hugging Face revisions are resolved to immutable commits at submission.
-- Existing or custom constitutions, built-in deduplicated AIRiskDilemmas or uploaded JSONL scenarios, 2–8 models, 1–64 criteria, 1–200 unique scenarios.
+- Existing or custom constitutions, built-in deduplicated AIRiskDilemmas or uploaded JSONL scenarios, at least two models, and administrator-controlled optional limits.
 - Direct 1–10 ratings, all-to-all judging (each panel member responds **and** judges),
   followed by EigenBench analysis and 200 scenario bootstraps.
 - Native and Inspect collection engines, sharing the downstream analysis.
@@ -57,11 +57,24 @@ may produce different samples even with the same seed.
    This enables that account with four hours of execution allowance. Runs then
    proceed automatically without per-run approval.
 
-**Credits are execution seconds, not dollars.** Submission reserves the maximum
-runtime; cleanup charges elapsed time from provisioning until confirmed deletion,
-up to the reservation, and returns the rest. The real GPU rate and API-token bills
-are separate expenses paid by the operator. There is no payment processor yet.
-No users receive quota automatically. Set provider-side budgets too.
+**Credits are execution seconds, not dollars.** Credits are optional: admins can enable
+`require_credits` globally or per participant. Users do not choose a duration. Without
+an admin runtime cap or a credit budget, runs continue until completion or cancellation.
+With credits enabled, submission reserves available time (bounded by any runtime cap)
+and cleanup returns unused time. Resource and model/provider constraints still apply.
+
+The runner is pinned to upstream `jchang153/EigenBench`, commit
+`c510619902013ec91c317c2c33a90fe27f8ee941`. Both Dockerfiles verify the checkout and
+its generation defaults at build time. Each artifact bundle includes `runner.json`.
+ValueArena omits generation settings unless explicitly supplied; upstream therefore
+resolves response/reflection/rating budgets to 4096/2048/512. These are finite defaults,
+not unlimited output, and can be overridden per phase or model in Advanced configuration.
+The former hosted 1024-token response default is removed. Existing job snapshots keep
+their original settings.
+
+This upstream revision supports at most rank-64 LoRA adapters in its native runner.
+Higher-rank native adapters are rejected before GPU provisioning. Use a compatible
+adapter or merged full checkpoint; the website does not patch upstream vLLM code.
 
 ## 2. Build the EigenBench GPU worker
 

@@ -28,7 +28,7 @@ def test_preview_matches_execution_and_preserves_overrides(service, tmp_path):
     actual['collection']['inspect']['log_dir'] = expected['collection']['inspect']['log_dir']
     assert actual == expected
     assert actual['collection']['generation']['reflection']['per_model']['a']['max_tokens'] == 2048
-    assert actual['collection']['generation']['response']['max_tokens'] == 1024
+    assert 'response' not in actual['collection']['generation']
     assert actual['training']['bootstrap']['n_bootstraps'] == 500
     assert actual['dataset']['count'] == 1
     assert json.loads((tmp_path/'scenarios.json').read_text()) == ['first', 'second', 'third']
@@ -70,4 +70,4 @@ def test_published_options_can_be_submitted(service):
     result = submit(api, payload(advanced_spec=defaults))
     assert result.status_code == 202, result.text
     spec = build_spec(db.get(result.json()['id'])['config'], '.')
-    assert spec['collection']['generation']['reflection']['max_tokens'] == 2048
+    assert 'max_tokens' not in spec['collection']['generation']['reflection']

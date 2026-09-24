@@ -48,6 +48,7 @@ def test_own_keys_require_both_and_are_verified(service, monkeypatch):
 def test_custom_models_are_pinned_and_safe(service, monkeypatch):
     _, db, client = service
     monkeypatch.setattr(model_resolution, 'hf_snapshot', lambda *args: 'a'*40)
+    monkeypatch.setattr(model_resolution, 'validate_native_adapters', lambda refs: None)
     model = {'id': 'my-qwen', 'provider': 'huggingface', 'repo_id': 'me/adapter', 'kind': 'lora',
              'subfolder': 'introspection-final', 'base_model_id': 'Qwen/Qwen2.5-7B-Instruct'}
     result = submit(client, payload(models=['a', 'my-qwen'], custom_models=[model]))

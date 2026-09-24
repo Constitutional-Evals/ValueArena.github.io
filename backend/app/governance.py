@@ -5,6 +5,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import Table, Column, String, Integer, BigInteger, JSON, select, update
 from .advanced import AdvancedSpec
+from .upstream import GENERATION_DEFAULTS
 
 class Limits(BaseModel):
     model_config = ConfigDict(extra='forbid')
@@ -76,7 +77,8 @@ def enforce(config, limits):
     advanced = AdvancedSpec.model_validate(config.get('advanced_spec',{}))
     if advanced.dataset.count: checks.append((advanced.dataset.count,'max_scenarios'))
     generation = advanced.collection.generation.model_dump()
-    fallback={'response':config['response_tokens'],'reflection':2048,'direct_rating':512}
+    fallback={name:values['max_tokens'] for name,values in GENERATION_DEFAULTS.items()}
+    if config.get('response_tokens') is not None: fallback['response']=config['response_tokens']
     for name,phase in generation.items():
         checks.append((phase.get('max_tokens') or fallback[name],'max_tokens'))
         for decoding in phase['per_model'].values():
