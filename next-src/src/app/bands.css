@@ -1,0 +1,401 @@
+/* Section bands, floating cards, chart notes, pixel landscapes and the site
+   footer. Loaded after research.css so it can layer on the shared styles. */
+:root[data-theme='light'] {
+  --band-sage: #dde7d5;
+  --band-sand: #efe2c4;
+  --band-clay: #f0dacb;
+  --band-mint: #d5e6de;
+  --hill-1: #e1e8d6;
+  --hill-2: #c9dac3;
+  --hill-3: #aac7ab;
+  --hill-edge: #f8f3e8;
+  --card-bg: #fbf8f2;
+  --card-line: #0000000d;
+  --card-shadow: inset 0 1px 0 #ffffffb3, 0 10px 30px #28321f12;
+  --card-shadow-hover: inset 0 1px 0 #ffffffb3, 0 18px 40px #28321f1f;
+  --footer-panel: #ebe3d4;
+  --wordmark: #ffffffc4;
+}
+:root[data-theme='dark'] {
+  --band-sage: #151e18;
+  --band-sand: #1f1b12;
+  --band-clay: #221816;
+  --band-mint: #121e1b;
+  --hill-1: #151d18;
+  --hill-2: #1b2820;
+  --hill-3: #24362a;
+  --hill-edge: #3a5142;
+  --card-bg: #15171b;
+  --card-line: #ffffff10;
+  --card-shadow: 0 10px 30px #00000059;
+  --card-shadow-hover: 0 18px 44px #00000080;
+  --footer-panel: #111317;
+  --wordmark: #ffffff17;
+}
+
+/* Full-bleed backgrounds must not add a horizontal scrollbar */
+html,
+body {
+  overflow-x: clip;
+}
+
+/* ---------- Hero: rising pixel sheets behind the intro ---------- */
+.hero-with-hills {
+  position: relative;
+  isolation: isolate;
+}
+.hero-hills {
+  position: absolute;
+  z-index: -1;
+  left: 50%;
+  bottom: 0;
+  width: 100vw;
+  height: 100%;
+  transform: translateX(-50%);
+  pointer-events: none;
+  /* Fade toward the text on the left and into the page at the bottom */
+  -webkit-mask-image: linear-gradient(to right, transparent 5%, #000 72%), linear-gradient(to bottom, #000 75%, transparent);
+  -webkit-mask-composite: source-in;
+  mask-image: linear-gradient(to right, transparent 5%, #000 72%), linear-gradient(to bottom, #000 75%, transparent);
+  mask-composite: intersect;
+}
+
+/* ---------- Bands: each section sits on a tint that fades into the next ---------- */
+.arena-home .band-section {
+  position: relative;
+  isolation: isolate;
+  border: 0;
+}
+.arena-home .band-section[style]::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 100vw;
+  transform: translateX(-50%);
+  background: linear-gradient(
+    180deg,
+    var(--band-from) 0%,
+    var(--band-color) 22%,
+    var(--band-color) 78%,
+    var(--band-to) 100%
+  );
+  transition: background 0.4s ease;
+}
+
+/* Content drifts up the first time a band scrolls into view */
+@media (prefers-reduced-motion: no-preference) {
+  .arena-home.reveal-ready .band-section > * {
+    opacity: 0;
+    transform: translateY(16px);
+    transition: opacity 0.7s ease, transform 0.7s cubic-bezier(0.2, 0.7, 0.2, 1);
+  }
+  .arena-home.reveal-ready .band-section.is-visible > * {
+    opacity: 1;
+    transform: none;
+  }
+  .arena-home.reveal-ready .band-section.is-visible > :nth-child(2) {
+    transition-delay: 0.08s;
+  }
+  .arena-home.reveal-ready .band-section.is-visible > :nth-child(n + 3) {
+    transition-delay: 0.16s;
+  }
+}
+
+/* ---------- Floating cards on the bands ---------- */
+.band-card {
+  background: var(--card-bg);
+  border: 1px solid var(--card-line);
+  border-radius: 28px;
+  padding: 28px 30px;
+  box-shadow: var(--card-shadow);
+  transition: transform 0.35s cubic-bezier(0.2, 0.7, 0.2, 1), box-shadow 0.35s ease;
+}
+.band-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--card-shadow-hover);
+}
+.band-card .arena-protocol {
+  margin-top: 0;
+  border-top: 0;
+}
+.band-card .arena-protocol > div:last-child {
+  border-bottom: 0;
+}
+.arena-home .band-card .home-ranking,
+.arena-home .band-card .home-panel,
+.arena-home .band-card .arena-protocol {
+  max-width: none;
+}
+
+/* ---------- Chart + detail notes side by side ---------- */
+.band-split {
+  display: grid;
+  gap: 18px;
+}
+.band-split .band-card {
+  min-width: 0;
+}
+@media (min-width: 1000px) {
+  .band-split {
+    grid-template-columns: minmax(0, 1fr) 248px;
+    align-items: stretch;
+  }
+  /* The three notes split the chart card's height evenly, tops and bottoms aligned */
+  .band-notes {
+    grid-template-rows: repeat(3, minmax(0, 1fr));
+  }
+}
+.band-notes {
+  display: grid;
+  gap: 12px;
+}
+@media (min-width: 640px) and (max-width: 999px) {
+  .band-notes {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+.band-note {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: 16px 18px;
+  border: 1.5px dashed color-mix(in srgb, var(--text) 24%, transparent);
+  border-radius: 20px;
+  background: color-mix(in srgb, var(--card-bg) 40%, transparent);
+  transition: transform 0.3s cubic-bezier(0.2, 0.7, 0.2, 1), border-color 0.3s ease, background-color 0.3s ease;
+}
+.band-note:hover {
+  transform: translateY(-3px);
+  border-style: solid;
+  border-color: var(--accent);
+  background: var(--card-bg);
+}
+/* A single square pixel in place of a round dot */
+.band-note-dot {
+  position: absolute;
+  top: 19px;
+  right: 18px;
+  width: 6px;
+  height: 6px;
+  background: var(--text);
+  transition: background-color 0.3s ease, box-shadow 0.3s ease;
+}
+.band-note:hover .band-note-dot {
+  background: var(--accent);
+  box-shadow: 6px 0 0 -1px var(--accent), -6px 0 0 -1px var(--accent), 0 6px 0 -1px var(--accent), 0 -6px 0 -1px var(--accent);
+}
+.band-note-kicker {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin: 0 0 8px;
+}
+.band-note h3 {
+  font: 600 15px/1.3 var(--font-body);
+  letter-spacing: -0.01em;
+  margin: 0 20px 6px 0;
+}
+.band-note p:last-child {
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+/* ---------- Hover polish ---------- */
+.arena-home .experiment-index .home-run {
+  border-radius: 14px;
+  transition: background-color 0.25s ease, padding 0.25s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.arena-home .experiment-index .home-run:hover {
+  background: var(--accent-dim);
+  padding-left: 10px;
+}
+.button-primary,
+.button-secondary,
+.research-primary {
+  transition: transform 0.2s ease, background-color 0.2s ease, border-color 0.2s ease;
+}
+.button-primary:hover,
+.button-secondary:hover,
+.research-primary:hover {
+  transform: translateY(-1px);
+}
+.button-primary > span[aria-hidden],
+.button-secondary > span[aria-hidden] {
+  display: inline-block;
+  transition: transform 0.2s ease;
+}
+.button-primary:hover > span[aria-hidden],
+.button-secondary:hover > span[aria-hidden] {
+  transform: translateX(3px);
+}
+
+/* ---------- Site footer ---------- */
+.site-footer {
+  padding: 24px max(12px, calc((100vw - 1280px) / 2)) 0;
+}
+.site-footer-panel {
+  position: relative;
+  overflow: hidden;
+  border-radius: 36px 36px 0 0;
+  background: var(--footer-panel);
+  padding: 26px 26px 0;
+}
+.site-footer-cards {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 1.5fr);
+}
+.site-footer-card {
+  background: var(--card-bg);
+  border-radius: 26px;
+  padding: 26px 28px 30px;
+  transition: transform 0.3s cubic-bezier(0.2, 0.7, 0.2, 1), box-shadow 0.3s ease;
+}
+.site-footer-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--card-shadow-hover);
+}
+.site-footer-card h2 {
+  font: 500 26px/1.1 var(--font-body);
+  letter-spacing: -0.025em;
+  margin: 0 0 28px;
+}
+.site-footer-card ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 12px;
+}
+.site-footer-card li a {
+  font-size: 14px;
+  color: var(--text-secondary);
+  background: linear-gradient(currentColor, currentColor) 0 100% / 0 1px no-repeat;
+  padding-bottom: 2px;
+  transition: background-size 0.25s ease, color 0.2s ease;
+}
+.site-footer-card li a:hover {
+  color: var(--accent);
+  background-size: 100% 1px;
+}
+.site-footer-cta {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+.site-footer-cta p {
+  font: 600 19px/1.4 var(--font-body);
+  letter-spacing: -0.01em;
+  max-width: 320px;
+  margin: 0 0 26px;
+}
+.site-footer-cta img {
+  flex: none;
+  align-self: flex-start;
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+.site-footer-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 16px;
+  border-radius: var(--control-radius, 10px);
+  background: var(--accent);
+  color: var(--bg);
+  font-size: 14px;
+  font-weight: 500;
+  transition: transform 0.2s ease, background-color 0.2s ease;
+}
+.site-footer-button:hover {
+  background: var(--accent-hover);
+  transform: translateY(-1px);
+}
+.site-footer-button > span {
+  transition: transform 0.2s ease;
+}
+.site-footer-button:hover > span {
+  transform: translateX(3px);
+}
+.site-footer-meta {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 8px 0;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.site-footer-meta a:hover {
+  color: var(--accent);
+}
+.site-footer-scene {
+  position: relative;
+  height: clamp(150px, 21vw, 290px);
+  margin: 0 -26px;
+}
+.site-footer-scene .pixel-hills {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.site-footer-wordmark {
+  position: absolute;
+  left: 50%;
+  bottom: -0.2em;
+  transform: translateX(-50%);
+  font: 700 clamp(64px, 15vw, 196px) / 1 var(--font-body);
+  letter-spacing: -0.055em;
+  color: var(--wordmark);
+  white-space: nowrap;
+  user-select: none;
+}
+@media (max-width: 1000px) {
+  .site-footer-cards {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .site-footer-cta {
+    grid-column: 1 / -1;
+  }
+}
+@media (max-width: 640px) {
+  .site-footer-panel {
+    border-radius: 26px 26px 0 0;
+    padding: 14px 14px 0;
+  }
+  .site-footer-cards {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .site-footer-card {
+    padding: 20px;
+    border-radius: 20px;
+  }
+  .site-footer-card h2 {
+    font-size: 20px;
+    margin-bottom: 16px;
+  }
+  .site-footer-scene {
+    margin: 0 -14px;
+  }
+  .band-card {
+    padding: 20px 16px;
+    border-radius: 22px;
+  }
+}
+
+/* The carousel lost its label; keep its arrows on the right */
+.featured-carousel-controls {
+  justify-content: flex-end;
+}
