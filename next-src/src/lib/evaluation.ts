@@ -15,7 +15,8 @@ export async function evaluationRequest(path: string, options: RequestInit = {},
   } });
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
-    throw new Error(typeof body.detail === 'string' ? body.detail : `Request failed (${response.status}).`);
+    const detail = typeof body.detail === 'string' ? body.detail : Array.isArray(body.detail) ? body.detail.slice(0, 3).map((e: { loc?: string[]; msg?: string }) => `${e.loc?.join('.')}: ${e.msg}`).join('; ') : `Request failed (${response.status}).`;
+    throw new Error(detail);
   }
   return response;
 }
