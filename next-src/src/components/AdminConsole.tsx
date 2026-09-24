@@ -9,7 +9,17 @@ type Policy = {approval_required:boolean;submissions_enabled:boolean;dispatch_en
 type Snapshot = {version:number;policy:Policy;members:Member[];audit:{id:string;action:string;target:string;actor:string;created_at:number}[];limits_schema:{properties:Record<string,{minimum?:number;maximum?:number}>}};
 const title=(s:string)=>s.replaceAll('_',' ').replace(/^./,c=>c.toUpperCase());
 function LimitsForm({value,onChange,schema}:{value:Limits;onChange:(v:Limits)=>void;schema:Snapshot['limits_schema']}) {
- return <div className="admin-limits">{Object.entries(value).map(([key,v])=><label key={key}>{title(key)}{typeof v==='boolean'?<input type="checkbox" checked={v} onChange={e=>onChange({...value,[key]:e.target.checked})}/>:<input type="number" required min={schema.properties[key]?.minimum} max={schema.properties[key]?.maximum} value={v} onChange={e=>onChange({...value,[key]:Number(e.target.value)})}/>}</label>)}</div>;
+ return <>
+  <div className="eval-actions"><button type="button" onClick={()=>onChange(Object.fromEntries(Object.entries(value).map(([key,v])=>[key,typeof v==='number' ? schema.properties[key]?.maximum ?? v : v])))}>Set all to max supported</button></div>
+  <p className="eval-help">Maximum values remove additional account restrictions up to the hosted runner’s supported limits. Model context windows, available scenarios and provider capacity still apply.</p>
+  <div className="admin-limits">{Object.entries(value).map(([key,v])=>{
+   const field=schema.properties[key];
+   return <label key={key}>{title(key)}{typeof v==='boolean'?<input type="checkbox" checked={v} onChange={e=>onChange({...value,[key]:e.target.checked})}/>:<>
+    <input type="number" required min={field?.minimum} max={field?.maximum} value={v} onChange={e=>onChange({...value,[key]:Number(e.target.value)})}/>
+    {field?.maximum!==undefined&&<button type="button" aria-label={`Set ${title(key)} to maximum supported`} onClick={()=>onChange({...value,[key]:field.maximum!})}>{v===field.maximum?'Maximum selected':`Max supported · ${field.maximum.toLocaleString()}`}</button>}
+   </>}</label>;
+  })}</div>
+ </>;
 }
 export function AdminConsole() {
  const [ready,setReady]=useState(false),[loggedIn,setLoggedIn]=useState(false),[data,setData]=useState<Snapshot|null>(null),[error,setError]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false);
