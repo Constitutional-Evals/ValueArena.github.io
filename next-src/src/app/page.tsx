@@ -5,6 +5,23 @@ import { FeaturedCarousel } from '@/components/FeaturedCarousel';
 import { ResultsExplorer } from '@/components/ResultsExplorer';
 import { HomeRanking } from '@/components/HomeRanking';
 import { ExperimentsPreview } from '@/components/ExperimentsPreview';
+import { PixelHills } from '@/components/PixelHills';
+
+// Each section sits on a tinted band; neighbouring bands meet on a shared mix
+// of their two colours so one fades into the next. Values are CSS variables so
+// both themes supply their own palette.
+const BANDS = ['var(--bg)', 'var(--band-sage)', 'var(--band-sand)', 'var(--band-clay)', 'var(--band-mint)', 'var(--bg)'];
+const band = (i: number) => ({
+  '--band-from': `color-mix(in srgb, ${BANDS[i - 1]} 50%, ${BANDS[i]})`,
+  '--band-color': BANDS[i],
+  '--band-to': `color-mix(in srgb, ${BANDS[i]} 50%, ${BANDS[i + 1]})`,
+}) as React.CSSProperties;
+
+const TRADEOFF_NOTES = [
+  { kicker: 'How to read it', title: 'Right is funnier, up is more sarcastic', text: 'Each dot is one model. Thin lines are 95% intervals, so overlapping dots are too close to call.' },
+  { kicker: 'What stands out', title: 'The two traits move together', text: 'Models that score high on humor tend to score high on sarcasm too.' },
+  { kicker: 'Why it matters', title: 'Traits rarely change alone', text: 'Pushing a model toward one trait drags related ones along, the side effect our character-training study measures.' },
+];
 
 export default function HomePage() {
   const [active, setActive] = useState('tradeoffs');
@@ -16,12 +33,28 @@ export default function HomePage() {
     document.querySelectorAll('.arena-home section[id]').forEach(section => observer.observe(section));
     return () => observer.disconnect();
   }, []);
+  // Sections fade up the first time they scroll into view
+  useEffect(() => {
+    const targets = document.querySelectorAll('.arena-home .band-section');
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      targets.forEach(t => t.classList.add('is-visible'));
+      return;
+    }
+    // Only hide content once we know the observer will reveal it again
+    document.querySelector('.arena-home')?.classList.add('reveal-ready');
+    const reveal = new IntersectionObserver(entries => {
+      for (const entry of entries) if (entry.isIntersecting) { entry.target.classList.add('is-visible'); reveal.unobserve(entry.target); }
+    }, { rootMargin: '0px 0px -12% 0px' });
+    targets.forEach(t => reveal.observe(t));
+    return () => reveal.disconnect();
+  }, []);
   useEffect(() => {
     const moved: Record<string, string> = { '#leaderboard': '/leaderboard/', '#experiments': '/experiments/' };
     if (moved[window.location.hash]) window.location.replace(moved[window.location.hash]);
   }, []);
   return <div className="research-home story-home arena-home">
-    <section className="research-intro has-pixel-art" aria-labelledby="home-title">
+    <section className="research-intro has-pixel-art hero-with-hills" aria-labelledby="home-title">
+      <PixelHills variant="hero" className="hero-hills" />
       <h1 id="home-title">Measuring values in language models</h1>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img className="home-pixel-art" src="/assets/art/model-conversation.webp" width="768" height="507" alt="" aria-hidden="true" />
@@ -31,37 +64,43 @@ export default function HomePage() {
     <FeaturedCarousel />
     <nav className="story-jump home-contents" aria-label="On this page"><span>Contents</span>{contents.map(([id, title], index) => <a key={id} href={`#${id}`} aria-current={active === id ? 'location' : undefined}><span>{String(index + 1).padStart(2, '0')}</span>{title}</a>)}</nav>
 
-    <section className="story-section home-featured" id="tradeoffs">
+    <section className="story-section home-featured band-section" id="tradeoffs" style={band(1)}>
       <div className="story-copy"><h2>Humor and sarcasm</h2><p>Each dot is a model, scored once for humor and once for sarcasm. Hover over a dot to see which model it is, click it to read how it was judged, or filter by model family below.</p></div>
-      <ResultsExplorer embedded />
+      <div className="band-split">
+        <div className="band-card"><ResultsExplorer embedded /></div>
+        <aside className="band-notes" aria-label="About this chart">
+          {TRADEOFF_NOTES.map(n => <div className="band-note" key={n.kicker}><span className="band-note-dot" aria-hidden="true" /><p className="band-note-kicker">{n.kicker}</p><h3>{n.title}</h3><p>{n.text}</p></div>)}
+        </aside>
+      </div>
     </section>
 
-    <section className="story-section" id="values">
+    <section className="story-section band-section" id="values" style={band(2)}>
       <div className="story-copy"><h2>Model rankings by constitution</h2><p>Pick a constitution to see how the models ranked on it. Each ranking comes from a single run, so its scores only compare the models, scenarios and judges in that run.</p></div>
-      <HomeRanking />
+      <div className="band-card"><HomeRanking /></div>
     </section>
 
-    <section className="story-section" id="how-it-works">
+    <section className="story-section band-section" id="how-it-works" style={band(3)}>
       <div className="story-copy art-section-intro"><img className="section-pixel-art" src="/assets/art/constitution-notebook.webp" width="256" height="256" alt="" aria-hidden="true" loading="lazy" /><h2>How EigenBench works</h2><p>Every model answers the same scenarios. Then the models take turns as judges, reading each other’s answers with the names removed and deciding which fits the constitution better. EigenBench turns those judgments into scores.</p></div>
+      <div className="band-card">
       <dl className="arena-protocol">
         <div><dt>Responses</dt><dd>Every model answers the same scenario. What it chooses to do shows what it cares about.</dd></div>
         <div><dt>Judgments</dt><dd>Judges either pick the better of two unnamed answers or rate each answer against the constitution.</dd></div>
         <div><dt>Aggregation</dt><dd>EigenTrust gives more say to judges whose own answers the other judges rate highly, then combines everything into one score per model.</dd></div>
       </dl>
       <div className="arena-method-note"><strong>Why the error bars?</strong><p>A different sample of scenarios or judgments could shuffle the order a little. The bootstrap intervals show how much, so you can tell a real gap from noise.</p><a href="/research/eigenbench/">About EigenBench →</a></div>
+      </div>
     </section>
 
-    <section className="story-section" id="evidence">
+    <section className="story-section band-section" id="evidence" style={band(4)}>
       <div className="story-copy">
         <h2>Published experiments</h2><p>Open a run to see which models took part, how many judgments were collected, and the judgments themselves. The explorer lets you compare rankings across constitutions.</p></div>
-      <ExperimentsPreview />
+      <div className="band-card"><ExperimentsPreview /></div>
       <div className="research-links arena-evidence-links"><a className="research-primary" href="/explore/">Explore rankings & tradeoffs ↗</a><a href="/compare/">Compare models yourself →</a></div>
       <p className="story-small">A higher score means a model’s answers fit the chosen constitution better. It says nothing about whether the model is safer or better aligned overall. The model at the top of the sarcasm ranking is just very sarcastic.</p>
     </section>
 
-    <section className="story-closing" id="related-research">
+    <section className="story-closing band-section" id="related-research">
       <div className="art-section-intro"><img className="section-pixel-art" src="/assets/art/character-side-effects.webp" width="256" height="256" alt="" aria-hidden="true" loading="lazy" /><h2>The side effects of character training</h2><p>We used EigenBench to study character training: train a model to be, say, more loving, then check what else changed. We also looked at what happens when a prompt pulls against the trained trait, and how things shift over the course of training.</p><div className="research-links"><a className="research-primary" href="/research/character-training/">Read the overview →</a></div></div>
     </section>
-    <footer className="research-footer"><a href="/research/">Research from LAISR Lab</a><div><a href="https://github.com/ValueArena/ValueArena.github.io">Code ↗</a><a href="https://huggingface.co/datasets/invi-bhagyesh/ValueArena">Data ↗</a><a href="/leaderboard/">Leaderboard →</a></div></footer>
   </div>;
 }

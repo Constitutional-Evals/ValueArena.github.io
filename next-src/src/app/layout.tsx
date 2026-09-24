@@ -1,9 +1,11 @@
 import { pageMetadata } from '@/lib/metadata';
 import './globals.css';
 import './research.css';
+import './bands.css';
 import type { Metadata, Viewport } from 'next';
 import { Space_Grotesk, JetBrains_Mono } from 'next/font/google';
 import { Header } from '@/components/Header';
+import { SiteFooter } from '@/components/SiteFooter';
 
 const spaceGrotesk = Space_Grotesk({
   subsets: ['latin'],
@@ -59,6 +61,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <a className="skip-link" href="#main-content">Skip to content</a>
         <Header />
         <main id="main-content" className="va-main">{children}</main>
+        <SiteFooter />
       </body>
     </html>
   );

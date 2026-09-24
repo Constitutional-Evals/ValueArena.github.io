@@ -13,10 +13,6 @@ export default function ResearchPage() {
       <div className="research-links"><a href="https://openreview.net/pdf?id=oh9CqCyxSc">Read the paper ↗</a><a className="research-primary" href="#side-effects">See the findings ↓</a><a href="/explore/">Open the explorer ↗</a></div>
     </section>
     <ResearchStory />
-    <footer className="research-footer">
-      <span>LAISR Lab</span>
-      <div><a href="https://github.com/ValueArena/ValueArena.github.io">Code ↗</a><a href="https://huggingface.co/datasets/invi-bhagyesh/ValueArena">Data ↗</a><a href="/leaderboard/">Leaderboard →</a></div>
-    </footer>
   </div>;
 }
 
