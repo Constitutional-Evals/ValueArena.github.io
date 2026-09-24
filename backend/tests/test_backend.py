@@ -102,7 +102,7 @@ def test_engine_snapshot_and_safe_spec(service, tmp_path, engine):
     assert spec['name'] == name
     assert config['engine'] == engine
     assert spec['models'] == {'a': 'org/model-a', 'b': 'org/model-b'}
-    assert spec['collection']['generation']['reflection']['max_tokens'] == 2048
+    assert spec['collection'].get('generation', {}) == {}
     assert spec['collection']['inspect']['cache'] is False
     assert spec['upload']['enabled'] is False
     assert not spec['training'].get('allow_missing', False)

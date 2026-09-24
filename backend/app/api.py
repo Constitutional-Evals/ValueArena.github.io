@@ -147,12 +147,11 @@ def create_app(config=None, store=None, auth=None, storage=None):
     @app.get('/spec-options')
     def spec_options():
         defaults = AdvancedSpec().model_dump(exclude_none=True)
-        defaults['collection']['generation'] = {
-            'response': {'max_tokens': 1024, 'temperature': 0.7, 'per_model': {}},
-            'reflection': {'max_tokens': 2048, 'temperature': 0.2, 'per_model': {}},
-            'direct_rating': {'max_tokens': 512, 'temperature': 0, 'per_model': {}},
-        }
-        return {'defaults':merge_options(defaults,db.policy()['policy']['spec_defaults']), 'schema':AdvancedSpec.model_json_schema()}
+        from .upstream import REPOSITORY, REVISION, GENERATION_DEFAULTS
+        return {'defaults':merge_options(defaults,db.policy()['policy']['spec_defaults']),
+                'schema':AdvancedSpec.model_json_schema(),
+                'runner':{'repository':REPOSITORY,'revision':REVISION},
+                'generation_defaults':GENERATION_DEFAULTS}
 
     @app.post('/spec-preview')
     def spec_preview(incoming: EvaluationRequest, user_id=Depends(user)):

@@ -46,6 +46,28 @@ def hf_snapshot(repo, revision, subfolder='', adapter=False):
         raise HTTPException(503, f'Unable to verify Hugging Face repository: {repo}') from None
 
 
+def validate_native_adapters(refs):
+    """Pinned upstream native vLLM engine supports LoRA ranks up to 64."""
+    for nick, ref in refs.items():
+        if not isinstance(ref, dict) or ref.get('provider') != 'hf_local' or ref.get('kind') != 'lora':
+            continue
+        repo, revision = ref['repo_id'], ref.get('revision', 'main')
+        prefix = ref.get('subfolder', '').strip('/')
+        filename = (prefix + '/' if prefix else '') + 'adapter_config.json'
+        try:
+            response = httpx.get(f'https://huggingface.co/{repo}/resolve/{quote(revision,safe="")}/{filename}', timeout=20, follow_redirects=True)
+            response.raise_for_status()
+            config = response.json()
+            ranks = [config['r'], *(config.get('rank_pattern') or {}).values()]
+            if any(not isinstance(rank,int) or isinstance(rank,bool) or rank < 1 for rank in ranks):
+                raise ValueError('Invalid adapter rank')
+            rank = max(ranks)
+        except (httpx.HTTPError, KeyError, ValueError, TypeError):
+            raise HTTPException(422, f'Cannot verify LoRA rank for {nick}. Check the adapter configuration.') from None
+        if rank > 64:
+            raise HTTPException(422, f'{nick} has LoRA rank {rank}; the pinned upstream native runner supports at most 64. Use a compatible lower-rank adapter or a merged full model. No GPU has been started.')
+
+
 def resolve_models(request, catalog):
     refs = {key: entry['ref'] for key, entry in catalog.items() if key in request.models}
     for model in request.custom_models:
@@ -63,6 +85,7 @@ def resolve_models(request, catalog):
                            base_revision=hf_snapshot(model.base_model_id, model.base_revision))
             refs[model.id] = ref
     if set(request.models) != set(refs): raise HTTPException(422, 'Select a preset or provide a model reference')
+    if request.engine == 'native': validate_native_adapters(refs)
     return refs
 
 

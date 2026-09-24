@@ -40,7 +40,7 @@ export function AdvancedConfiguration({ value, onChange, configVersion, getReque
   }
   return <details className="eval-advanced" onToggle={e => setOpen(e.currentTarget.open)}>
     <summary>Advanced configuration</summary>
-    <p>Edit spec settings as JSON. Changes here override the form’s defaults and are included when you submit.</p>
+    <p>Edit spec settings as JSON. Changes here override the form’s defaults and are included when you submit. Omitted generation settings inherit upstream EigenBench’s finite budgets; they do not mean unlimited tokens.</p>
     <div className="eval-actions"><button type="button" disabled={!defaults} onClick={() => onChange(JSON.stringify(defaults, null, 2))}>Load all options</button><button type="button" onClick={() => onChange('{}')}>Reset overrides</button></div>
     <label>Spec overrides<textarea aria-label="Advanced spec JSON" rows={16} spellCheck={false} value={value} onChange={e => onChange(e.target.value)} /></label>
     {syntaxError && <p role="alert">{syntaxError}</p>}
