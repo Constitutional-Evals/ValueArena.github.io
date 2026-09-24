@@ -42,16 +42,19 @@ export function CollectionCoverage({ meta, slug }: { meta: MetaJson; slug: strin
     <section className={`card collection-coverage${warning ? ' collection-coverage-warning' : ''}`} aria-label="Collection coverage">
       <h2>Collection coverage</h2>
       {state.loading ? <p role="status">Loading omitted samples…</p> : report ? <>
-        <p className="coverage-headline"><strong>{report.omitted_samples.toLocaleString()} logged samples omitted</strong> · {report.exported_samples.toLocaleString()} of {report.logged_samples.toLocaleString()} included in the export</p>
+        <p className="coverage-headline"><strong>{report.omitted_samples.toLocaleString()} samples omitted</strong> · {report.exported_samples.toLocaleString()} of {report.logged_samples.toLocaleString()} exported</p>
       </> : <>
-        <p className="coverage-headline"><strong>{estimate.source === 'reported' ? `${omitted?.toLocaleString()} missing judgments reported` : estimate.source === 'estimate' ? `${omitted?.toLocaleString()} judgments short of the spec total (estimate)` : 'Omitted sample count unavailable'}</strong></p>
-        {estimate.exported !== null && <p>{estimate.exported.toLocaleString()} judgments in the published analysis{estimate.expected !== null ? `; ${estimate.expected.toLocaleString()} expected from the spec` : ''}.</p>}
-        <p className="card-caption">{estimate.source === 'estimate' ? 'This is estimated from row counts, not a checked list of failures. Even when the totals match, some planned judgments could still have failed.' : estimate.source === 'reported' ? 'Taken from the run’s metadata. The missing samples themselves haven’t been published.' : 'This run didn’t publish a report of missing judgments, so there may be failures we can’t see.'} {estimate.inconsistent ? 'The totals don’t match a single pass over the plan. The run was probably extended, and checking what’s missing would need its original assignments.' : ''}</p>
+        <p className="coverage-headline"><strong>{estimate.source === 'unknown' || omitted === null ? 'Missing-judgment count unavailable' : omitted === 0 ? 'No missing judgments' : `${omitted.toLocaleString()} missing judgments`}</strong></p>
+        <p className="card-caption">{[
+          estimate.exported !== null && (estimate.expected !== null ? `${estimate.exported.toLocaleString()} of ${estimate.expected.toLocaleString()} planned judgments published` : `${estimate.exported.toLocaleString()} judgments published`),
+          estimate.source === 'estimate' ? 'estimated from row counts' : estimate.source === 'reported' ? 'from run metadata' : 'no missing-judgment report',
+          estimate.inconsistent && 'totals suggest an extended run',
+        ].filter(Boolean).join(' · ')}</p>
       </>}
-      {additionalShortfall && <p className="coverage-warning-text">Going by the spec, about {estimate.omitted?.toLocaleString()} judgments are missing overall. Some may never have made it into the published log, and the table below only lists the ones that did.</p>}
-      {estimate.partial && <p className="coverage-warning-text">This collection is marked as partial.</p>}
-      {warning && <p className="coverage-warning-text">Rankings and transcripts may only cover the judgments that succeeded.</p>}
-      {state.error && <p role="status">Couldn’t load the report of missing samples. {estimate.source !== 'unknown' ? 'Showing what the run’s metadata says instead.' : 'Details about the failures aren’t available.'}</p>}
+      {additionalShortfall && <p className="coverage-warning-text">About {estimate.omitted?.toLocaleString()} judgments are missing by the spec; the table lists only logged ones.</p>}
+      {estimate.partial && <p className="coverage-warning-text">Marked as a partial collection.</p>}
+      {warning && <p className="coverage-warning-text">Rankings and transcripts cover only the judgments that succeeded.</p>}
+      {state.error && <p role="status">Couldn’t load the missing-samples report{estimate.source !== 'unknown' ? '; showing run metadata instead.' : '.'}</p>}
       <div className="coverage-actions">
         {inspectURL && <a className="tx-btn" href={inspectURL} target="_blank" rel="noreferrer">See sample details →</a>}
         {url && report && <a className="tx-btn" href={url} target="_blank" rel="noreferrer">Download omission report</a>}
