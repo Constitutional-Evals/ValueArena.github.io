@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { FeaturedCarousel } from '@/components/FeaturedCarousel';
 import { ResultsExplorer } from '@/components/ResultsExplorer';
 import { HomeRanking } from '@/components/HomeRanking';
 import { ExperimentsPreview } from '@/components/ExperimentsPreview';
@@ -27,6 +28,7 @@ export default function HomePage() {
       <p className="research-deck">EigenBench scores language models on how well their answers fit a written set of values, which we call a constitution. Browse the rankings, compare models across constitutions, and read the actual responses and judgments behind every score.</p>
       <div className="home-actions"><a className="button-primary" href="/explore/">Explore results <span aria-hidden>↗</span></a><a className="button-secondary" href="/research/eigenbench/">How EigenBench works <span aria-hidden>→</span></a></div>
     </section>
+    <FeaturedCarousel />
     <nav className="story-jump home-contents" aria-label="On this page"><span>Contents</span>{contents.map(([id, title], index) => <a key={id} href={`#${id}`} aria-current={active === id ? 'location' : undefined}><span>{String(index + 1).padStart(2, '0')}</span>{title}</a>)}</nav>
 
     <section className="story-section home-featured" id="tradeoffs">
