@@ -205,13 +205,43 @@ body {
 }
 
 /* ---------- Hover polish ---------- */
-.arena-home .experiment-index .home-run {
-  border-radius: 14px;
-  transition: background-color 0.25s ease, padding 0.25s cubic-bezier(0.2, 0.7, 0.2, 1);
+/* Inside a band card the card is the surface, so the nested panel goes flat */
+.band-card .home-panel {
+  background: none;
+  box-shadow: none;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
 }
-.arena-home .experiment-index .home-run:hover {
+.band-card .home-panel-head {
+  padding: 0 14px;
+}
+/* Rows get their own inset so numbers and text never touch an edge; the
+   separators are straight lines drawn inside that inset */
+.arena-home .band-card .experiment-index .home-run {
+  position: relative;
+  padding: 16px 14px;
+  border-top: 0;
+  border-bottom: 0;
+  border-radius: 14px;
+  transition: background-color 0.25s ease;
+}
+.arena-home .band-card .experiment-index .home-run + .home-run::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 14px;
+  right: 14px;
+  height: 1px;
+  background: var(--border-light);
+  transition: opacity 0.25s ease;
+}
+.arena-home .band-card .experiment-index .home-run:hover {
   background: var(--accent-dim);
-  padding-left: 10px;
+}
+.arena-home .band-card .experiment-index .home-run:hover::before,
+.arena-home .band-card .experiment-index .home-run:hover + .home-run::before {
+  opacity: 0;
 }
 .button-primary,
 .button-secondary,
