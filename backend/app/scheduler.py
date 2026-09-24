@@ -62,12 +62,17 @@ def tick(db, pods, cfg, now=None):
                 elif not job['heartbeat_at'] and now-job['started_at'] > cfg.startup_timeout:
                     db.finish(job['id'], 'failed', 'worker_start_timeout')
                 # Never reissue a create request for provisioning jobs after a crash/timeout.
+        p=db.policy()['policy']
         current = db.list()
         occupied = sum(j['state'] in ACTIVE or (j['state'] in TERMINAL and not j['cleanup_done']) for j in current)
         for job in sorted(current, key=lambda j: j['created_at']):
-            if occupied >= cfg.max_running_jobs: break
+            if not p['dispatch_enabled'] or occupied >= p['max_running_jobs']: break
             if job['state'] != 'queued' or job['id'] not in reachable: continue
-            if not db.patch(job['id'], ('queued',), state='provisioning', stage='starting', started_at=now): continue
+            member=db.member(job['user_id'])
+            if not member or member['status']!='approved':
+                db.finish(job['id'],'cancelled','account_disabled')
+                db.settle(job['id']); db.forget_credentials(job['id']); continue
+            if not db.claim_job(job['id'],now): continue
             occupied += 1
             try:
                 pod_id = provider(job).create(job)

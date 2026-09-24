@@ -18,7 +18,7 @@ export function EvaluationLogin() {
         : await auth.auth.signInWithPassword({ email, password });
       if (result.error) throw result.error;
       setPassword('');
-      if (mode !== 'login') setMessage(mode === 'signup' ? 'Check your email to confirm your account, then log in.' : 'Check your email for the link.');
+      if (mode !== 'login') setMessage(mode === 'signup' ? 'Check your email to confirm your account, then log in to request workspace access.' : 'Check your email for the link.');
     } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   }
   return <section className="evaluation-login">

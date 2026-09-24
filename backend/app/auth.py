@@ -20,15 +20,20 @@ class SupabaseAuth:
     def __init__(self, settings):
         self.settings = settings
 
-    def user(self, token):
+    def identity(self, token):
         try:
             response = httpx.get(f'{self.settings.supabase_url}/auth/v1/user',
                 headers={'apikey': self.settings.supabase_publishable_key, 'Authorization': f'Bearer {token}'}, timeout=15)
             if response.status_code in (401, 403):
                 raise HTTPException(401, 'Invalid or expired login')
             response.raise_for_status()
-            return str(UUID(response.json()['id']))
+            data=response.json()
+            return {'id':str(UUID(data['id'])), 'email':data.get('email','') if data.get('email_confirmed_at') else '',
+                    'username':str(data.get('user_metadata',{}).get('username',''))[:100]}
         except HTTPException:
             raise
         except (httpx.HTTPError, ValueError, KeyError):
             raise HTTPException(503, 'Authentication service unavailable') from None
+
+    def user(self, token):
+        return self.identity(token)['id']
