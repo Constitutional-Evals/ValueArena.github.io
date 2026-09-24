@@ -16,6 +16,8 @@ from .config import settings
 from .db import ACTIVE, TERMINAL, Conflict, Forbidden, Store
 from .models import EvaluationRequest, WorkerFinish, WorkerUpdate, VisibilityUpdate
 from .model_resolution import resolve_models, openrouter_models, verify_provider_keys
+from .advanced import AdvancedSpec
+from .spec import build_spec
 from .secrets import encrypt
 from .results import ResultSummary, ResultBatch
 from .storage import LocalStorage, SupabaseStorage
@@ -30,7 +32,7 @@ def public_job(job):
                 'visibility': job['config'].get('visibility', 'private'),
                 'constitution': job['config'].get('constitution_name', 'Custom'),
                 'models_count': len(job['config']['models']),
-                'scenario_count': len(job['config']['scenarios']) or job['config'].get('scenario_count', 200)}
+                'scenario_count': (job['config'].get('advanced_spec', {}).get('dataset', {}).get('count') or len(job['config']['scenarios']) or job['config'].get('scenario_count', 200))}
 
 
 def create_app(config=None, store=None, auth=None, storage=None):
@@ -85,6 +87,25 @@ def create_app(config=None, store=None, auth=None, storage=None):
     def available_openrouter(user_id=Depends(user)):
         return {'models': openrouter_models()}
 
+    @app.get('/spec-options')
+    def spec_options():
+        defaults = AdvancedSpec().model_dump(exclude_none=True)
+        defaults['collection']['generation'] = {
+            'response': {'max_tokens': 1024, 'temperature': 0.7, 'per_model': {}},
+            'reflection': {'max_tokens': 2048, 'temperature': 0.2, 'per_model': {}},
+            'direct_rating': {'max_tokens': 512, 'temperature': 0, 'per_model': {}},
+        }
+        return {'defaults': defaults, 'schema': AdvancedSpec.model_json_schema()}
+
+    @app.post('/spec-preview')
+    def spec_preview(incoming: EvaluationRequest, user_id=Depends(user)):
+        import pprint
+        config = incoming.model_dump(exclude={'openrouter_key', 'runpod_key'})
+        config['advanced_spec'] = incoming.advanced_spec.model_dump(exclude_unset=True, exclude_none=True)
+        config['model_refs'] = resolve_models(incoming, catalog)
+        spec = build_spec(config, '.')
+        return {'spec': spec, 'python': 'RUN_SPEC = ' + pprint.pformat(spec, sort_dicts=False) + '\n'}
+
     @app.get('/account')
     def account(user_id=Depends(user)):
         return db.balance(user_id) | {'credit_unit': 'reserved execution second; not currency'}
@@ -112,6 +133,7 @@ def create_app(config=None, store=None, auth=None, storage=None):
         if incoming.funding == 'service' and (incoming.gpu_type != cfg.runpod_gpu_type or incoming.disk_gb != cfg.runpod_disk_gb):
             raise HTTPException(422, 'Custom compute requires your own provider keys')
         config = incoming.model_dump(exclude={'openrouter_key', 'runpod_key'})
+        config['advanced_spec'] = incoming.advanced_spec.model_dump(exclude_unset=True, exclude_none=True)
         digest = hashlib.sha256(json.dumps(config, sort_keys=True).encode()).hexdigest()
         # Snapshot the catalog: queued jobs do not silently change if administrators update it.
         config['model_refs'] = refs
@@ -140,7 +162,7 @@ def create_app(config=None, store=None, auth=None, storage=None):
         job = readable(job_id, authorization)
         result = db.get_presentation(job['id'], 'summary')
         if not result: raise HTTPException(404, 'Results are not available yet')
-        return {'job': public_job(job), 'criteria': job['config']['criteria'], **result}
+        return {'job': public_job(job), 'criteria': job['config']['criteria'][:job['config'].get('advanced_spec', {}).get('constitution', {}).get('num_criteria')], **result}
 
     @app.get('/results/{job_id}/records/{batch}')
     def records(job_id: UUID, batch: int, authorization: str | None = Header(default=None)):

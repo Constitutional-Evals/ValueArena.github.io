@@ -276,3 +276,32 @@ Failed runs cannot be published as successful results or bypass coverage checks.
 4. Run a bounded native/Inspect smoke test with valid provider keys; verify logs,
    result visibility, pod deletion, and credential removal. Local tests use fake
    providers and do not establish GPU compatibility.
+
+
+### Advanced configuration
+
+Expand **Advanced configuration** beside submission to edit JSON overrides using
+EigenBench's existing nested spec names. **Load all options** inserts the hosted
+runner's supported settings; **Reset overrides** restores `{}`. Overrides take
+precedence over defaults. Invalid JSON disables submission, and the API rejects
+unknown fields and invalid combinations before queueing.
+
+Editable settings include direct-rating normalization, self judgments and
+EigenTrust alpha; dataset start/count/shuffle; criterion count; direct samplers,
+group size, redundancy and seed; token budgets and temperatures for each phase
+and each selected model; native OpenRouter retries/concurrency; Inspect cache,
+phased execution, retries/concurrency; verbosity; and bootstrap controls.
+Per-model keys must be the selected model IDs shown in the editor.
+
+**Validate & preview spec.py** resolves model references and uses the same compiler
+as the worker, without starting a job or downloading model weights. The Python
+preview can be downloaded and is invalidated when the form or overrides change.
+Its relative paths refer to `scenarios.json` and `constitution.json`; the worker
+substitutes its actual run directory. Execution keeps the full source dataset and
+applies start/count/shuffle consistently during collection and analysis.
+
+The hosted runner currently uses direct ratings. Pairwise-only optimizer options,
+extension source files, arbitrary input/output paths, executable Python, and
+external upload destinations are not accepted. Models and source data are set in
+the form. Collection/analysis stay enabled, and publication and coverage checks
+remain service-managed. `/spec-options` exposes defaults and the JSON schema.
