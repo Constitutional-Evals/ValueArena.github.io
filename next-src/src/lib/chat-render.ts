@@ -84,6 +84,12 @@ export async function renderMarkdown(text: string): Promise<string> {
   return out;
 }
 
+/** Like renderMarkdown, but null unless the sanitizer loaded, so callers can fall back to plain text. */
+export async function renderMarkdownSanitized(text: string): Promise<string | null> {
+  const { sanitize } = await ensureRenderers().catch(() => ({} as Renderers));
+  return sanitize ? renderMarkdown(text) : null;
+}
+
 export function isStreamingDelta(line: string): { content: string } | null | 'done' {
   if (!line.startsWith('data: ')) return null;
   const data = line.slice(6).trim();

@@ -100,6 +100,7 @@ export function Header() {
         <a href="/leaderboard/" aria-current={pathname.startsWith('/leaderboard') ? 'page' : undefined}>Leaderboard</a>
         <a href="/explore/" aria-current={pathname.startsWith('/explore') ? 'page' : undefined}>Explore</a>
         <a href="/experiments/" aria-current={pathname.startsWith('/experiments') ? 'page' : undefined}>Experiments</a>
+        <a href="/judge/" aria-current={pathname.startsWith('/judge') ? 'page' : undefined}>Judge</a>
         {admin && <a href="/admin/" aria-current={pathname.startsWith('/admin') ? 'page' : undefined}>Admin</a>}
       </nav>
       <div className="va-header-actions">
