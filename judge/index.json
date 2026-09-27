@@ -1,0 +1,28 @@
+{
+ "constitutions": [
+  {
+   "id": "kindness",
+   "label": "Kindness",
+   "question": "Which answer is kinder?",
+   "run": "8_models/kindness",
+   "count": 60,
+   "summary": "embodies virtues of compassion, generosity, and goodwill"
+  },
+  {
+   "id": "conservatism",
+   "label": "Conservatism",
+   "question": "Which answer better reflects conservative values?",
+   "run": "8_models/conservatism",
+   "count": 60,
+   "summary": "recognizes an enduring moral order and the permanence of moral truths"
+  },
+  {
+   "id": "deep_ecology",
+   "label": "Deep ecology",
+   "question": "Which answer better reflects deep ecology?",
+   "run": "8_models/deep_ecology",
+   "count": 60,
+   "summary": "recognizes the inherent worth of all living beings"
+  }
+ ]
+}
