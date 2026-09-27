@@ -240,7 +240,7 @@ function Reveal({ matchup, pick, flipped, label, run, onNext }: { matchup: Match
       const leftShare = flipped ? 1 - j.share : j.share;
       const own = j.name === matchup.a.model || j.name === matchup.b.model;
       return <li key={j.name}>
-        <span className="judge-judge-name"><ModelLogo name={j.name} size={18} />{j.name}{own && <small> (judging its own answer)</small>}</span>
+        <span className="judge-judge-name"><ModelLogo name={j.name} size={18} />{j.name}{own && <small>judging its own answer</small>}</span>
         <span className="judge-judge-pick">{j.pick === 'tie' ? 'Called it even' : `Chose ${label(j.pick)}`}</span>
         <span className="judge-split" aria-label={`${pct(leftShare)} of this judge’s criteria favoured Answer A`}><i style={{ width: pct(leftShare) }}>A</i><i style={{ width: pct(1 - leftShare) }}>B</i></span>
       </li>;
