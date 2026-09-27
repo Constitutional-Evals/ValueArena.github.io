@@ -793,7 +793,7 @@ a:focus-visible, button:focus-visible, summary:focus-visible, select:focus-visib
 .judge-criteria ul { margin: 10px 0 0; padding-left: 18px; display: grid; gap: 4px; color: var(--text-secondary); font-size: 13px; line-height: 1.55; }
 .judge-scenario { padding: 14px 16px; border-radius: 14px; background: var(--bg); margin-bottom: 16px; }
 .judge-scenario span { display: block; color: var(--text-muted); font-size: 12px; margin-bottom: 4px; }
-.judge-scenario p { font-size: 16px; line-height: 1.5; font-weight: 500; overflow-wrap: anywhere; }
+.judge-scenario p { font-size: 15px; line-height: 1.6; color: var(--text); overflow-wrap: anywhere; }
 .judge-answers { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .judge-answer { display: flex; flex-direction: column; min-width: 0; padding: 14px 16px; border: 1px solid var(--border); border-radius: 16px; background: var(--bg-elevated); transition: border-color .2s, box-shadow .2s; }
 .judge-answer header { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; min-height: 24px; margin-bottom: 8px; }
@@ -825,12 +825,12 @@ a:focus-visible, button:focus-visible, summary:focus-visible, select:focus-visib
 .judge-judges li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; align-items: center; font-size: 13px; }
 .judge-judge-name { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0 7px; font-weight: 500; min-width: 0; }
 .judge-judge-name small { color: var(--text-muted); font-weight: 400; }
-@media (max-width: 640px) { .judge-judge-name small { flex-basis: 100%; padding-left: 25px; } }
 .judge-judge-pick { color: var(--text-secondary); text-align: right; }
-.judge-split { grid-column: 1 / -1; display: flex; height: 16px; border-radius: 5px; overflow: hidden; font-size: 10px; line-height: 16px; }
-.judge-split i { font-style: normal; text-align: center; min-width: 0; overflow: hidden; }
-.judge-split i:first-child { background: var(--accent); color: var(--bg); }
-.judge-split i:last-child { background: color-mix(in srgb, var(--text-muted) 30%, transparent); color: var(--text-secondary); }
+.judge-reveal-note { color: var(--text-secondary); font-size: 12px; line-height: 1.55; margin: -6px 0 12px; }
+.judge-score { grid-column: 1 / -1; height: 8px; border-radius: 99px; background: color-mix(in srgb, var(--text-muted) 25%, transparent); overflow: hidden; }
+.judge-score i { display: block; height: 100%; border-radius: inherit; background: var(--accent); }
+.judge-judge-usual { grid-column: 1 / -1; color: var(--text-muted); font-size: 11px; margin-top: -1px; }
+.judge-judge-pick b, .judge-answer-votes b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
 .judge-md { white-space: normal; }
 .judge-md > * + * { margin-top: .6em; }
 .judge-md :is(h1, h2, h3, h4) { font-size: 14px; font-weight: 600; color: var(--text); }
@@ -888,6 +888,10 @@ a:focus-visible, button:focus-visible, summary:focus-visible, select:focus-visib
   .judge-head > p:last-child { font-size: 15px; }
   .judge-card { padding: 16px; border-radius: 18px; }
   .judge-card-top h2 { font-size: 19px; }
+  .judge-scenario { padding: 12px 14px; }
+  .judge-scenario p { font-size: 14px; }
+  .judge-judges li { grid-template-columns: 1fr; }
+  .judge-judge-pick { text-align: left; }
   .judge-answers { grid-template-columns: 1fr; gap: 10px; }
   .judge-answer-text { max-height: 12em; }
   .judge-vote { grid-template-columns: 1fr 1fr; }

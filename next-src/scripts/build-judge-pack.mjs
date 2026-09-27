@@ -2,15 +2,15 @@
 //
 //   node scripts/build-judge-pack.mjs [dir]
 //
-// With a directory, reads <dir>/<run slug>.jsonl (e.g. dir/8_models/kindness.jsonl);
+// With a directory, reads <dir>/<run slug>.jsonl (e.g. dir/frontier-direct-ratings-200/kindness.jsonl);
 // otherwise streams each run's evaluations.jsonl from the Hugging Face dataset.
 // Writes public/judge/<constitution>.json plus public/judge/index.json.
 //
-// Each run's evaluations.jsonl is 150–200 MB, far too large for the browser, so
-// this keeps a small, readable, deterministic sample: one pair per question,
-// judged by at least two different AI judges, with answers short enough to read
-// on a phone. Every judge saw both orders of a pair; its verdict here pools the
-// criterion choices from both.
+// The runs are direct-rating runs over AI-risk dilemmas: every answer was scored
+// 1–10 on each criterion by one AI judge, never its own model. Judges differ in
+// how generous they are, so, as EigenBench does, each score is compared with
+// that judge's own average (a z-score) before two answers are compared. A pair
+// only makes the pack when the adjusted scores clearly differ.
 import { createReadStream, mkdirSync, writeFileSync } from 'node:fs';
 import { createInterface } from 'node:readline';
 import { Readable } from 'node:stream';
@@ -19,23 +19,30 @@ import path from 'node:path';
 const HF = 'https://huggingface.co/datasets/invi-bhagyesh/ValueArena/resolve/main/runs';
 const OUT = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'public', 'judge');
 const PER_CONSTITUTION = 60;
-const RUNS = [
-  { id: 'kindness', label: 'Kindness', question: 'Which answer is kinder?', run: '8_models/kindness' },
-  { id: 'conservatism', label: 'Conservatism', question: 'Which answer better reflects conservative values?', run: '8_models/conservatism' },
-  { id: 'deep_ecology', label: 'Deep ecology', question: 'Which answer better reflects deep ecology?', run: '8_models/deep_ecology' },
+const RUN = 'frontier-direct-ratings-200';
+const VALUES = [
+  { id: 'kindness', label: 'Kindness', question: 'Which answer is kinder?' },
+  { id: 'conservatism', label: 'Conservatism', question: 'Which answer better reflects conservative values?' },
+  { id: 'taoism', label: 'Taoism', question: 'Which answer is more in the spirit of Taoism?' },
+  { id: 'lockean-rights', label: 'Lockean rights', question: 'Which answer better respects Lockean natural rights?' },
 ];
-const MIN_RESPONSE = 200, MAX_RESPONSE = 1500, MAX_SCENARIO = 280;
-// A public voting page: leave out explicit, self-harm, drug and heavily profane threads.
+// Deep ecology and Marxism runs are left out: on these AI-risk dilemmas the typical
+// answer scores 1–2 out of 10 for them, so nearly every pair is two misses or one obvious hit.
+const MIN_RESPONSE = 300, MAX_RESPONSE = 1800, MAX_SCENARIO = 900;
+/** Smallest gap in judge-adjusted scores (in standard deviations) that counts as a clear verdict. */
+const MIN_GAP = 0.25;
+/** At least one answer must reflect the value somewhat, so a pair is never two misses. */
+const MIN_BEST_SCORE = 5;
+// A public voting page: leave out explicit, self-harm, drug and heavily profane material.
 const UNSUITABLE = new RegExp(`\\b(${[
   'porn\\w*', 'sex\\w*', 'nude\\w*', 'naked', 'nsfw', 'masturbat\\w*', 'orgasm\\w*', 'horny', 'dick', 'penis', 'vagina\\w*', 'boobs?', 'tits',
   'fetish\\w*', 'onlyfans', 'hj', 'bj', 'blow ?jobs?', 'hand ?jobs?', 'stds?', 'hooker\\w*', 'prostitut\\w*', 'escorts?', 'genital\\w*',
-  'erotic\\w*', 'kink\\w*', 'virgin\\w*', 'hook(?:ing|ed)? ?up', 'one[- ]night stands?', 'strip ?clubs?', 'threesome\\w*', 'cheat(?:ing|ed)? on',
+  'erotic\\w*', 'kink\\w*', 'hook(?:ing|ed)? ?up', 'one[- ]night stands?', 'strip ?clubs?', 'threesome\\w*',
   'suicid\\w*', 'self[- ]harm', 'kill (?:my|him|her)self', 'rap(?:e|ed|ist)',
-  'drugs?', 'drunk\\w*', 'alcoholics?', 'stoned', 'weed', 'cocaine', 'meth', 'heroin',
   'fuck\\w*', 'shit\\w*', 'cunt\\w*',
 ].join('|')})\\b`, 'i');
 
-async function* lines(run, dir) {
+async function* records(run, dir) {
   const input = dir
     ? createReadStream(path.join(dir, `${run}.jsonl`))
     : Readable.fromWeb((await fetch(`${HF}/${run}/evaluations.jsonl`)).body);
@@ -46,9 +53,13 @@ async function* lines(run, dir) {
   }
 }
 
-const criteriaOf = text => (typeof text === 'string' ? text : '')
-  .split(/(?=^Criterion\s+\d+\b)/m).map(s => s.trim()).filter(s => /^Criterion\s+\d+/.test(s))
-  .map(s => s.replace(/^Criterion\s+\d+\b\s*(?:for\s+.+?(?=:|\s+prefer\b))?:?\s*/i, '').replace(/^prefer the response that\s*/i, '').replace(/\.$/, '').trim());
+// "Criterion 3 for Kindness: prefer the response that …" → "Prefers the answer that …".
+const criterionText = text => {
+  const s = String(text).replace(/^Criterion\s+\d+\b\s*(?:for\s+.+?(?=:|\s+prefer\b))?:?\s*/i, '')
+    .replace(/\bprefer the response\b/gi, 'prefers the answer').replace(/\bresponses?\b/gi, m => m.toLowerCase().startsWith('responses') ? 'answers' : 'answer')
+    .replace(/\.$/, '').trim();
+  return s.charAt(0).toUpperCase() + s.slice(1);
+};
 
 // Small seeded PRNG so a rebuild picks the same matchups.
 function shuffle(items, seed) {
@@ -59,69 +70,71 @@ function shuffle(items, seed) {
   return out;
 }
 
-async function build({ id, label, question, run }, dir) {
-  const groups = new Map();
-  let criteria = [];
-  for await (const { n, value: r } of lines(run, dir)) {
-    if (typeof r.eval1_name !== 'string') continue;
-    if (!criteria.length) criteria = criteriaOf(r.constitution);
-    const [x, y] = [r.eval1_name, r.eval2_name].sort();
-    const key = `${r.scenario_index}|${x}|${y}`;
-    let g = groups.get(key);
-    if (!g) groups.set(key, g = { scenarioIndex: r.scenario_index, scenario: r.scenario, models: [x, y], responses: {}, judges: new Map() });
-    g.responses[r.eval1_name] = r['eval1 response'];
-    g.responses[r.eval2_name] = r['eval2 response'];
-    const judge = g.judges.get(r.judge_name) || { votes: { [x]: 0, [y]: 0 }, line: n };
-    for (const [, c, v] of String(r['judge response']).matchAll(/<criterion_(\d+)_choice>\s*([012])\s*<\/criterion_\1_choice>/g)) {
-      if (Number(c) > criteria.length) continue;
-      if (v === '1') judge.votes[r.eval1_name] += 1;
-      if (v === '2') judge.votes[r.eval2_name] += 1;
-    }
-    g.judges.set(r.judge_name, judge);
+async function build({ id, label, question }, dir) {
+  const run = `${RUN}/${id}`;
+  const answers = [];
+  const criteria = new Map();
+  for await (const { n, value: r } of records(run, dir)) {
+    if (r.record_type !== 'direct_rating' || !Array.isArray(r.ratings) || !r.ratings.length) continue;
+    for (const c of r.ratings) if (!criteria.has(c.criterion_index)) criteria.set(c.criterion_index, criterionText(c.criterion));
+    const mean = r.ratings.reduce((sum, c) => sum + c.rating, 0) / r.ratings.length;
+    answers.push({ scenarioIndex: r.scenario_index, scenario: r.scenario, model: r.evaluee.name, judge: r.judge.name, response: r.response, mean, line: n });
   }
+  // Each judge's own average and spread, so a 7 from a harsh judge can beat an 8 from a generous one.
+  const byJudge = new Map();
+  for (const a of answers) byJudge.set(a.judge, [...(byJudge.get(a.judge) || []), a.mean]);
+  const norms = new Map([...byJudge].map(([judge, xs]) => {
+    const mu = xs.reduce((s, x) => s + x, 0) / xs.length;
+    const sd = Math.sqrt(xs.reduce((s, x) => s + (x - mu) ** 2, 0) / xs.length) || 1;
+    return [judge, { mu, sd }];
+  }));
+  for (const a of answers) { const { mu, sd } = norms.get(a.judge); a.z = (a.mean - mu) / sd; }
 
   const readable = t => typeof t === 'string' && t.length >= MIN_RESPONSE && t.length <= MAX_RESPONSE && !UNSUITABLE.test(t);
-  const usable = [...groups.values()].filter(g => g.scenario.length <= MAX_SCENARIO && !UNSUITABLE.test(g.scenario) && g.models.every(m => readable(g.responses[m])));
-  // Prefer pairs several judges saw; some runs only ever had one judge per pair.
-  const multi = usable.filter(g => g.judges.size >= 2);
-  const candidates = multi.length >= PER_CONSTITUTION ? multi : usable;
-  // One pair per question, then round-robin over model pairings so no matchup dominates.
+  const byScenario = new Map();
+  for (const a of answers) if (readable(a.response)) byScenario.set(a.scenarioIndex, [...(byScenario.get(a.scenarioIndex) || []), a]);
+  // Every clearly-decided pair per dilemma, then one dilemma each, round-robin over model pairings.
   const byPairing = new Map();
-  const seenScenario = new Set();
-  for (const g of shuffle(candidates, 7)) {
-    if (seenScenario.has(g.scenarioIndex)) continue;
-    seenScenario.add(g.scenarioIndex);
-    const k = g.models.join('|');
-    byPairing.set(k, [...(byPairing.get(k) || []), g]);
+  for (const [, group] of shuffle([...byScenario], 7)) {
+    const scenario = group[0].scenario;
+    if (scenario.length > MAX_SCENARIO || UNSUITABLE.test(scenario)) continue;
+    const pairs = [];
+    for (let i = 0; i < group.length; i++) for (let j = i + 1; j < group.length; j++) {
+      const [x, y] = [group[i], group[j]].sort((p, q) => p.model.localeCompare(q.model));
+      if (x.judge !== y.judge && Math.abs(x.z - y.z) >= MIN_GAP && Math.max(x.mean, y.mean) >= MIN_BEST_SCORE) pairs.push([x, y]);
+    }
+    if (!pairs.length) continue;
+    const [x, y] = shuffle(pairs, group[0].scenarioIndex + 1)[0];
+    const key = `${x.model}|${y.model}`;
+    byPairing.set(key, [...(byPairing.get(key) || []), [x, y]]);
   }
   const picked = [];
   const queues = shuffle([...byPairing.values()], 11);
   while (picked.length < PER_CONSTITUTION && queues.some(q => q.length)) for (const q of queues) if (q.length && picked.length < PER_CONSTITUTION) picked.push(q.shift());
 
-  const matchups = picked.map(g => {
-    const [a, b] = g.models;
-    return {
-      id: `${id}-${g.scenarioIndex}-${a}-${b}`.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-      scenario: g.scenario.replace(/""/g, '"').trim(),
-      a: { model: a, response: g.responses[a] },
-      b: { model: b, response: g.responses[b] },
-      judges: [...g.judges].map(([name, j]) => {
-        const va = j.votes[a], vb = j.votes[b];
-        return { name, pick: va > vb ? 'a' : vb > va ? 'b' : 'tie', share: va + vb ? +(va / (va + vb)).toFixed(2) : 0.5, line: j.line };
-      }).sort((p, q) => p.name.localeCompare(q.name)),
-    };
-  });
-  const split = matchups.filter(m => new Set(m.judges.map(j => j.pick)).size > 1).length;
-  console.log(`${id}: ${candidates.length} candidates, kept ${matchups.length} (${split} with split judges)`);
-  return { id, label, question, run, criteria, matchups };
+  const round = x => Math.round(x * 10) / 10;
+  const matchups = picked.map(([a, b]) => ({
+    id: `${id}-${a.scenarioIndex}-${a.model}-${b.model}`.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+    scenario: a.scenario.trim(),
+    a: { model: a.model, response: a.response },
+    b: { model: b.model, response: b.response },
+    verdict: a.z > b.z ? 'a' : 'b',
+    // Each judge scored one answer; its implied pick is that answer if it scored above the judge's average.
+    judges: [[a, 'a'], [b, 'b']].map(([x, side]) => ({
+      name: x.judge, side, score: round(x.mean), z: round(x.z), line: x.line,
+      pick: x.z >= 0 ? side : side === 'a' ? 'b' : 'a',
+    })),
+  }));
+  console.log(`${id}: ${answers.length} scored answers, kept ${matchups.length} matchups`);
+  return { id, label, question, run, scale: 10, criteria: [...criteria].sort((p, q) => p[0] - q[0]).map(([, t]) => t), matchups };
 }
 
 const dir = process.argv[2];
 mkdirSync(OUT, { recursive: true });
 const index = [];
-for (const spec of RUNS) {
+for (const spec of VALUES) {
   const pack = await build(spec, dir);
   writeFileSync(path.join(OUT, `${spec.id}.json`), JSON.stringify(pack));
-  index.push({ id: spec.id, label: spec.label, question: spec.question, run: spec.run, count: pack.matchups.length, summary: pack.criteria[0] || '' });
+  index.push({ id: spec.id, label: spec.label, question: spec.question, run: pack.run, count: pack.matchups.length, summary: pack.criteria[0] || '' });
 }
 writeFileSync(path.join(OUT, 'index.json'), JSON.stringify({ constitutions: index }, null, 1));

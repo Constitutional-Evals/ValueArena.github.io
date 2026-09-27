@@ -1,16 +1,23 @@
 // You vs the AI judges: matchup packs, the visitor's votes, and what they add up to.
 //
 // Packs are static JSON built by scripts/build-judge-pack.mjs from published
-// EigenBench runs. Votes stay in this browser until community voting has a
-// backend; saveVote() is the one place that will need to send them on.
+// EigenBench direct-rating runs: each answer was scored by one AI judge, and the
+// verdict compares the two scores after adjusting for each judge's strictness.
+// Votes stay in this browser until community voting has a backend; saveVote()
+// is the one place that will need to send them on.
 
 export type Pick = 'a' | 'b' | 'tie';
 
 export interface JudgeVerdict {
   name: string;
+  /** The answer this judge scored. */
+  side: 'a' | 'b';
+  /** Mean criterion score on the pack's scale. */
+  score: number;
+  /** The score relative to this judge's own average, in standard deviations. */
+  z: number;
+  /** The answer this judge's score points to: its own answer if above its average, else the other. */
   pick: Pick;
-  /** Share of this judge's criterion choices that went to answer a (ties excluded). */
-  share: number;
   /** Line in the run's evaluations.jsonl, for linking to the judge's reasoning. */
   line: number;
 }
@@ -20,11 +27,13 @@ export interface Matchup {
   scenario: string;
   a: { model: string; response: string };
   b: { model: string; response: string };
+  /** The answer with the higher judge-adjusted score. */
+  verdict: 'a' | 'b';
   judges: JudgeVerdict[];
 }
 
 export interface PackInfo { id: string; label: string; question: string; run: string; count: number; summary: string }
-export interface Pack { id: string; label: string; question: string; run: string; criteria: string[]; matchups: Matchup[] }
+export interface Pack { id: string; label: string; question: string; run: string; scale: number; criteria: string[]; matchups: Matchup[] }
 
 export interface Vote {
   id: string;
@@ -33,11 +42,12 @@ export interface Vote {
   pick: Pick;
   a: string;
   b: string;
+  verdict: 'a' | 'b';
   judges: { name: string; pick: Pick }[];
   at: number;
 }
 
-const STORE = 'va-judge-votes-v1';
+const STORE = 'va-judge-votes-v2';
 
 export function loadVotes(): Vote[] {
   try {
@@ -58,30 +68,25 @@ export function clearVotes(): Vote[] {
   return [];
 }
 
-/** How many of the matchup's judges made the same call as the visitor. */
-export function agreement(vote: Pick, judges: { pick: Pick }[]) {
-  return { agreed: judges.filter(j => j.pick === vote).length, total: judges.length };
-}
-
 export interface JudgeStats {
   votes: number;
-  /** Judge verdicts that matched the visitor's pick, over all verdicts seen. */
+  /** Share of votes that matched the AI judges' verdict. */
   agreementRate: number | null;
-  /** Consecutive latest votes where most judges agreed. */
+  /** Consecutive latest votes that matched the verdict. */
   streak: number;
+  /** Per judge: how often its score pointed to the answer the visitor picked. */
   judges: { name: string; agreed: number; total: number; rate: number }[];
   models: { model: string; score: number; games: number; rate: number }[];
 }
 
 export function stats(votes: Vote[]): JudgeStats {
-  let agreed = 0, seen = 0;
   const judges = new Map<string, { agreed: number; total: number }>();
   const models = new Map<string, { score: number; games: number }>();
   for (const v of votes) {
     for (const j of v.judges) {
       const row = judges.get(j.name) || { agreed: 0, total: 0 };
-      row.total += 1; seen += 1;
-      if (j.pick === v.pick) { row.agreed += 1; agreed += 1; }
+      row.total += 1;
+      if (j.pick === v.pick) row.agreed += 1;
       judges.set(j.name, row);
     }
     for (const [model, side] of [[v.a, 'a'], [v.b, 'b']] as const) {
@@ -93,12 +98,11 @@ export function stats(votes: Vote[]): JudgeStats {
   }
   let streak = 0;
   for (const v of [...votes].sort((p, q) => q.at - p.at)) {
-    const { agreed: n, total } = agreement(v.pick, v.judges);
-    if (total && n * 2 > total) streak += 1; else break;
+    if (v.pick === v.verdict) streak += 1; else break;
   }
   return {
     votes: votes.length,
-    agreementRate: seen ? agreed / seen : null,
+    agreementRate: votes.length ? votes.filter(v => v.pick === v.verdict).length / votes.length : null,
     streak,
     judges: [...judges].map(([name, r]) => ({ name, ...r, rate: r.agreed / r.total })).sort((p, q) => q.rate - p.rate || q.total - p.total),
     models: [...models].map(([model, r]) => ({ model, ...r, rate: r.score / r.games })).sort((p, q) => q.rate - p.rate || q.games - p.games),

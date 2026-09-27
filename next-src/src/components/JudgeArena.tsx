@@ -7,7 +7,7 @@ import { asset } from '@/lib/config';
 import { fetchSummary } from '@/lib/hf';
 import { validRows } from '@/lib/chart-data';
 import { renderMarkdownSanitized } from '@/lib/chat-render';
-import { agreement, clearVotes, loadVotes, saveVote, stats, type Matchup, type Pack, type PackInfo, type Pick, type Vote } from '@/lib/judge';
+import { clearVotes, loadVotes, saveVote, stats, type Matchup, type Pack, type PackInfo, type Pick, type Vote, type JudgeVerdict } from '@/lib/judge';
 
 /** Votes needed before the values match opens. */
 const UNLOCK = 10;
@@ -67,7 +67,7 @@ export function JudgeArena() {
     if (!current || !pack || pick) return;
     const p = side === 'tie' ? 'tie' : (side === 'left') !== flipped ? 'a' : 'b';
     setPick(p);
-    setVotes(saveVote({ id: current.id, constitution: pack.id, pick: p, a: current.a.model, b: current.b.model, judges: current.judges.map(j => ({ name: j.name, pick: j.pick })), at: Date.now() }));
+    setVotes(saveVote({ id: current.id, constitution: pack.id, pick: p, a: current.a.model, b: current.b.model, verdict: current.verdict, judges: current.judges.map(j => ({ name: j.name, pick: j.pick })), at: Date.now() }));
   }, [current, pack, pick, flipped]);
 
   const goNext = useCallback(() => {
@@ -113,7 +113,7 @@ export function JudgeArena() {
     <header className="judge-head">
       <p className="judge-kicker">You vs the AI judges</p>
       <h1>Do you agree with the AI judges?</h1>
-      <p>Read a real question and two anonymous answers. Pick the one that better fits the value, then see which answer the AI judges chose.</p>
+      <p>Read an AI dilemma and two anonymous answers from frontier models. Pick the one that better fits the value, then see which answer the AI judges scored higher.</p>
     </header>
 
     <div className="judge-values" role="group" aria-label="Value">
@@ -139,17 +139,17 @@ export function JudgeArena() {
               <h2>{pack.question}</h2>
               <details className="judge-criteria"><summary>What the judges look for</summary><ul>{pack.criteria.map(c => <li key={c}>Prefers the answer that {c}</li>)}</ul></details>
             </div>
-            <div className="judge-scenario"><span>Question from Reddit</span><p>{current.scenario}</p></div>
+            <div className="judge-scenario"><span>The dilemma</span><p>{current.scenario}</p></div>
             <div className="judge-answers">
-              <Answer letter="A" side={left!} revealed={!!pick} chosen={!!pick && pick === toCanonical('left')} judgeCount={current.judges.filter(j => j.pick === toCanonical('left')).length} />
-              <Answer letter="B" side={right!} revealed={!!pick} chosen={!!pick && pick === toCanonical('right')} judgeCount={current.judges.filter(j => j.pick === toCanonical('right')).length} />
+              <Answer letter="A" side={left!} revealed={!!pick} chosen={!!pick && pick === toCanonical('left')} scoredBy={current.judges.find(j => j.side === toCanonical('left'))} scale={pack.scale} />
+              <Answer letter="B" side={right!} revealed={!!pick} chosen={!!pick && pick === toCanonical('right')} scoredBy={current.judges.find(j => j.side === toCanonical('right'))} scale={pack.scale} />
             </div>
             {!pick ? <div className="judge-vote">
               <button type="button" className="judge-pick" onClick={() => vote('left')}>A is better</button>
               <button type="button" className="judge-even" onClick={() => vote('tie')}>About the same</button>
               <button type="button" className="judge-pick" onClick={() => vote('right')}>B is better</button>
               <p className="judge-keys" aria-hidden="true">Keys: 1 or ← for A · 2 for even · 3 or → for B</p>
-            </div> : <Reveal matchup={current} pick={pick} flipped={flipped} label={label} run={pack.run} onNext={goNext} />}
+            </div> : <Reveal matchup={current} pick={pick} flipped={flipped} label={label} run={pack.run} scale={pack.scale} onNext={goNext} />}
           </>}
       </article>
 
@@ -193,7 +193,7 @@ export function JudgeArena() {
   </div>;
 }
 
-function Answer({ letter, side, revealed, chosen, judgeCount }: { letter: string; side: { model: string; response: string }; revealed: boolean; chosen: boolean; judgeCount: number }) {
+function Answer({ letter, side, revealed, chosen, scoredBy, scale }: { letter: string; side: { model: string; response: string }; revealed: boolean; chosen: boolean; scoredBy?: JudgeVerdict; scale: number }) {
   const [open, setOpen] = useState(false);
   const [long, setLong] = useState(false);
   const [html, setHtml] = useState<string | null>(null);
@@ -218,36 +218,32 @@ function Answer({ letter, side, revealed, chosen, judgeCount }: { letter: string
       ? <div ref={text} className={`judge-answer-text judge-md${open ? ' is-open' : ''}`} dangerouslySetInnerHTML={{ __html: html }} />
       : <div ref={text} className={`judge-answer-text${open ? ' is-open' : ''}`}>{side.response}</div>}
     {long && <button type="button" className="judge-more" onClick={() => setOpen(o => !o)} aria-expanded={open}>{open ? 'Show less' : 'Show full answer'}</button>}
-    {revealed && <p className="judge-answer-votes">{judgeCount} {judgeCount === 1 ? 'judge' : 'judges'} chose this</p>}
+    {revealed && scoredBy && <p className="judge-answer-votes">Scored <b>{scoredBy.score}/{scale}</b> by {scoredBy.name}</p>}
   </section>;
 }
 
-function Reveal({ matchup, pick, flipped, label, run, onNext }: { matchup: Matchup; pick: Pick; flipped: boolean; label: (p: Pick) => string; run: string; onNext: () => void }) {
-  const { agreed, total } = agreement(pick, matchup.judges);
-  const only = total === 1 ? matchup.judges[0] : null;
-  const headline = only
-    ? only.pick === pick ? (pick === 'tie' ? 'The AI judge also called it even' : 'The AI judge agreed with you')
-      : only.pick === 'tie' ? 'The AI judge called it even' : `The AI judge preferred ${label(only.pick)}`
-    : agreed === total ? (total === 2 ? 'Both AI judges agreed with you' : `All ${total} AI judges agreed with you`)
-      : agreed === 0 ? (pick === 'tie' ? `${total === 2 ? 'Neither' : 'None'} of the AI judges called it even` : 'The AI judges picked differently')
-        : `${agreed} of ${total} AI judges agreed with you`;
-  const tone = agreed * 2 > total ? 'is-agree' : agreed === 0 ? 'is-disagree' : 'is-split';
+function Reveal({ matchup, pick, flipped, label, run, scale, onNext }: { matchup: Matchup; pick: Pick; flipped: boolean; label: (p: Pick) => string; run: string; scale: number; onNext: () => void }) {
+  const headline = pick === matchup.verdict ? 'The AI judges agreed with you' : `The AI judges preferred ${label(matchup.verdict)}`;
+  const tone = pick === matchup.verdict ? 'is-agree' : pick === 'tie' ? 'is-split' : 'is-disagree';
+  // List the judges in on-screen order: whoever scored Answer A first.
+  const judges = [...matchup.judges].sort((x, y) => Number((x.side === 'a') === flipped) - Number((y.side === 'a') === flipped));
   const next = useRef<HTMLButtonElement>(null);
   useEffect(() => { next.current?.focus({ preventScroll: true }); }, []);
   return <div className={`judge-reveal ${tone}`}>
     <p className="judge-verdict" role="status">{headline}</p>
-    <ul className="judge-judges">{matchup.judges.map(j => {
-      const leftShare = flipped ? 1 - j.share : j.share;
-      const own = j.name === matchup.a.model || j.name === matchup.b.model;
+    <p className="judge-reveal-note">Each answer was scored by a different AI judge. The scores are compared after adjusting for how generous each judge usually is.</p>
+    <ul className="judge-judges">{judges.map(j => {
+      const usual = Math.abs(j.z) < .15 ? 'about its usual score' : j.z > 0 ? 'above its usual score' : 'below its usual score';
       return <li key={j.name}>
-        <span className="judge-judge-name"><ModelLogo name={j.name} size={18} />{j.name}{own && <small>judging its own answer</small>}</span>
-        <span className="judge-judge-pick">{j.pick === 'tie' ? 'Called it even' : `Chose ${label(j.pick)}`}</span>
-        <span className="judge-split" aria-label={`${pct(leftShare)} of this judge’s criteria favoured Answer A`}><i style={{ width: pct(leftShare) }}>A</i><i style={{ width: pct(1 - leftShare) }}>B</i></span>
+        <span className="judge-judge-name"><ModelLogo name={j.name} size={18} />{j.name}</span>
+        <span className="judge-judge-pick">scored {label(j.side)} <b>{j.score}/{scale}</b></span>
+        <span className="judge-score" aria-hidden="true"><i style={{ width: `${j.score / scale * 100}%` }} /></span>
+        <small className="judge-judge-usual">{usual}</small>
       </li>;
     })}</ul>
     <div className="judge-reveal-actions">
-      <button ref={next} type="button" className="button-primary" onClick={onNext}>Next question →</button>
-      <a href={`/transcript/?run=${encodeURIComponent(run)}&i=${matchup.judges[0].line}`}>Read the AI judges’ reasoning ↗</a>
+      <button ref={next} type="button" className="button-primary" onClick={onNext}>Next dilemma →</button>
+      <a href={`/transcript/?run=${encodeURIComponent(run)}&i=${judges[0].line}`}>Read the AI judges’ reasoning ↗</a>
     </div>
   </div>;
 }
