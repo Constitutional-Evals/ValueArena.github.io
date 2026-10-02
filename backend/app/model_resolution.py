@@ -1,5 +1,6 @@
 """Resolve public provider IDs to immutable, server-owned model references."""
 from .upstream import MAX_LORA_RANK
+from . import agents
 import re
 import time
 from urllib.parse import quote
@@ -97,6 +98,12 @@ def resolve_models(request, catalog, token=''):
                            base_revision=hf_snapshot(model.base_model_id, model.base_revision, token=token))
             refs[model.id] = ref
     if set(request.models) != set(refs): raise HTTPException(422, 'Select a preset or provide a model reference')
+    agent_refs = [ref for ref in refs.values() if agents.is_agent(ref)]
+    if agent_refs and request.engine != 'inspect':
+        raise HTTPException(422, 'Agent endpoints run through the Inspect engine. Select Inspect and submit again.')
+    # The endpoint key is the lab's secret; a pod on someone else's RunPod account could read it.
+    if request.funding == 'own_keys' and any(ref.get('key_env') for ref in agent_refs):
+        raise HTTPException(422, 'Agent endpoints with a private key run on LAISR Lab compute only.')
     if request.engine == 'native': validate_native_adapters(refs, token)
     return refs
 

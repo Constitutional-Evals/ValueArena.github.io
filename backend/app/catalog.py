@@ -2,6 +2,8 @@ import json
 import re
 from pathlib import Path
 
+from . import agents
+
 
 def load_catalog(path: Path):
     data = json.loads(path.read_text())
@@ -16,6 +18,8 @@ def load_catalog(path: Path):
         if isinstance(ref, str):
             if not re.fullmatch(r'[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.:-]+', ref) or ref.startswith(('hf_local:', 'inspect:')):
                 raise ValueError('Use OpenRouter IDs or structured HF references')
+        elif agents.is_agent(ref):
+            agents.validate(ref)
         elif isinstance(ref, dict):
             if set(ref) - {'provider', 'kind', 'repo_id', 'revision', 'subfolder', 'base_model_id', 'base_revision'}:
                 raise ValueError('Unexpected model configuration')

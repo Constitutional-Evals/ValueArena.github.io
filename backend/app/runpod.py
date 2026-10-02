@@ -1,6 +1,7 @@
 import time
 import httpx
 from .auth import worker_token
+from . import agents
 
 
 MIN_CUDA_VERSION = '13.0'
@@ -56,7 +57,8 @@ class RunPod:
         env = {'VA_JOB_ID': job['id'], 'VA_API_URL': self.cfg.api_public_url,
                'VA_WORKER_TOKEN': worker_token(self.cfg.worker_secret, job['id']),
                'OPENROUTER_API_KEY': self.cfg.openrouter_api_key,
-               'HF_TOKEN': self.cfg.hf_token}
+               'HF_TOKEN': self.cfg.hf_token,
+               **agents.pod_env(job['config'].get('model_refs', {}))}
         config = job['config']
         if config.get('compute_type') == 'cpu':
             response = self.client.post('/pods', json={

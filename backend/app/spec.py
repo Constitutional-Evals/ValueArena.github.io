@@ -4,16 +4,18 @@ import pprint
 from pathlib import Path
 
 from .models import EvaluationRequest
+from . import agents
 
 
 def build_spec(config, directory):
     request = EvaluationRequest.model_validate({k: v for k, v in config.items() if k != 'model_refs'})
-    if request.compute_type == 'cpu' and any(isinstance(ref, dict) for ref in config['model_refs'].values()):
+    if request.compute_type == 'cpu' and any(agents.is_local(ref) for ref in config['model_refs'].values()):
         raise ValueError('CPU evaluations support API models only; Hugging Face models require GPU')
     root = Path(directory)
     spec = {
         'name': request.name,
-        'models': {key: config['model_refs'][key] for key in request.models},
+        'models': {key: agents.spec_ref(ref) if agents.is_agent(ref) else ref
+                   for key in request.models for ref in [config['model_refs'][key]]},
         'evaluation': {'mode': 'direct_rating', 'direct_rating': {
             'include_self': True, 'normalization': 'zscore_softmax'}},
         'dataset': {'path': str(root/'scenarios.json'), 'count': (len(request.scenarios) or request.scenario_count)},

@@ -40,6 +40,8 @@ export function EvaluationRunner() {
   const [ownKeys, setOwnKeys] = useState(false); const [orKey, setOrKey] = useState(''); const [rpKey, setRpKey] = useState(''); const [hfToken, setHfToken] = useState('');
   const hasLocalModels = selected.some(id => models.some(m => m.id === id && m.provider === 'huggingface') || custom.some(m => m.id === id && m.provider === 'huggingface'));
   const computeType = hasLocalModels ? 'gpu' : 'cpu';
+  // Agent endpoints (a model with its own prompt and tools) are called through Inspect's OpenAI-compatible provider.
+  const hasAgents = selected.some(id => models.some(m => m.id === id && m.provider === 'agent'));
   const [gpuCount, setGPUCount] = useState(1);
   const [cpuCount, setCPUCount] = useState(4); const [cpuFlavor, setCPUFlavor] = useState('cpu3g'); const [volume, setVolume] = useState(0);
   const [gpu, setGPU] = useState(gpuTypes[0]); const [disk, setDisk] = useState(100);
@@ -241,6 +243,7 @@ export function EvaluationRunner() {
   const blockers: string[] = [];
 
   if ((ownKeys || isAdmin) && computeType === 'gpu' && gpuCount > 1 && engine === 'inspect') blockers.push('Select Native to use multiple GPUs.');
+  if (hasAgents && engine !== 'inspect') blockers.push('Agent models run through the Inspect engine. Select Inspect.');
   if ((ownKeys || isAdmin) && limits.max_disk_gb !== null && disk + volume > limits.max_disk_gb) blockers.push('Container and workspace storage exceed your total storage limit.');
   if (!name.trim()) blockers.push('Enter an evaluation name.');
   if (selected.length < 2) blockers.push('Select at least two models.');
@@ -325,7 +328,7 @@ export function EvaluationRunner() {
         <section className="eval-section"><header><span>01</span><h2>Models</h2><em className="eval-count">{selected.length} selected</em></header>
           <p>Each model answers the scenarios and judges the responses. {limits.max_models===null?'Choose at least two models.':`Choose 2–${limits.max_models} models.`}</p>
           <input type="search" className="eval-search" placeholder="Filter models…" aria-label="Filter models" value={modelQuery} onChange={e => setModelQuery(e.target.value)} />
-          <div className="eval-model-presets eval-model-grid">{models.filter(m => !modelQuery.trim() || `${m.label} ${m.id}`.toLowerCase().includes(modelQuery.trim().toLowerCase())).map(model => <label className="evaluation-model eval-model-card" key={model.id}><input type="checkbox" checked={selected.includes(model.id)} disabled={!selected.includes(model.id) && (limits.max_models !== null && selected.length >= limits.max_models)} onChange={e => setSelected(ids => e.target.checked ? [...ids, model.id] : ids.filter(id => id !== model.id))} /><ModelLogo name={model.id} size={22} /><span className="eval-model-text"><strong>{model.label}</strong><small>{model.id}</small></span><span className="eval-check" aria-hidden="true" /></label>)}</div>
+          <div className="eval-model-presets eval-model-grid">{models.filter(m => !modelQuery.trim() || `${m.label} ${m.id}`.toLowerCase().includes(modelQuery.trim().toLowerCase())).map(model => <label className="evaluation-model eval-model-card" key={model.id}><input type="checkbox" checked={selected.includes(model.id)} disabled={!selected.includes(model.id) && (limits.max_models !== null && selected.length >= limits.max_models)} onChange={e => { setSelected(ids => e.target.checked ? [...ids, model.id] : ids.filter(id => id !== model.id)); if (e.target.checked && model.provider === 'agent') setEngine('inspect'); }} /><ModelLogo name={model.id} size={22} /><span className="eval-model-text"><strong>{model.label}</strong><small>{model.provider === 'agent' ? 'Agent · own prompt and tools' : model.id}</small></span><span className="eval-check" aria-hidden="true" /></label>)}</div>
           {custom.map(m => <div className="eval-model-chip" key={m.id}><span><strong>{m.repo_id}</strong><small>{m.provider === 'openrouter' ? 'OpenRouter' : m.kind === 'lora' ? `LoRA · ${m.base_model_id}` : 'Hugging Face'}{m.subfolder && ` / ${m.subfolder}`}</small></span><button type="button" aria-label={`Remove ${m.repo_id}`} onClick={() => { setCustom(ms => ms.filter(x => x.id !== m.id)); setSelected(ids => ids.filter(id => id !== m.id)); }}>Remove</button></div>)}
           <p className="eval-subhead">Add a model by ID</p>
           <div className="eval-add-model"><div className="eval-fields"><label>Provider<select value={provider} onChange={e => setProvider(e.target.value)}><option value="openrouter">OpenRouter</option><option value="huggingface">Hugging Face</option></select></label><label>Model ID<input value={repo} onChange={e => setRepo(e.target.value)} list={provider === 'openrouter' ? 'openrouter-models' : undefined} placeholder={provider === 'openrouter' ? 'Search or paste provider/model' : 'owner/model'} /></label></div>

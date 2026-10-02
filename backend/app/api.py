@@ -12,6 +12,7 @@ from pydantic import ValidationError
 
 from .auth import SupabaseAuth, bearer, worker_token
 from .catalog import load_catalog
+from . import agents
 from .config import settings
 from .db import ACTIVE, TERMINAL, Conflict, Forbidden, Store
 from .models import EvaluationRequest, WorkerFinish, WorkerUpdate, VisibilityUpdate
@@ -87,7 +88,7 @@ def create_app(config=None, store=None, auth=None, storage=None):
         return config
 
     def select_compute(config,refs,user_id):
-        local = any(isinstance(ref,dict) for ref in refs.values())
+        local = any(agents.is_local(ref) for ref in refs.values())
         if local and config['compute_type']=='cpu':
             raise HTTPException(422,'CPU evaluations support API models only; Hugging Face models require GPU')
         if not local:
@@ -165,7 +166,7 @@ def create_app(config=None, store=None, auth=None, storage=None):
 
     @app.get('/models')
     def models():
-        return {'models': [{'id': key, 'label': entry['label'], 'provider': 'huggingface' if isinstance(entry['ref'], dict) else 'openrouter'} for key, entry in catalog.items()],
+        return {'models': [{'id': key, 'label': entry['label'], 'provider': 'agent' if agents.is_agent(entry['ref']) else 'huggingface' if isinstance(entry['ref'], dict) else 'openrouter'} for key, entry in catalog.items()],
                 'engines': ['native', 'inspect'], 'default_engine': 'native', 'evaluation_mode': 'direct_rating'}
 
     @app.get('/models/openrouter')

@@ -174,6 +174,39 @@ The native runner reads adapter configurations to size LoRA capacity, including
 the selected rank-128 composed adapter. Verify adapters against both engines before
 adding them. Increasing GPU count does not configure tensor parallelism.
 
+### Agent endpoints
+
+An agent (a model plus its own prompt, constitution and tools) can join a panel
+when it serves an OpenAI-compatible `/v1/chat/completions` API. Only administrators
+add agents, through the catalog; submissions cannot name a URL.
+
+```json
+{
+  "nycc-agent": {
+    "label": "NYCC agent (LAISR)",
+    "ref": {
+      "provider": "agent_endpoint",
+      "service": "agent-nycc",
+      "model": "nycc-agent",
+      "base_url": "https://laisr-nycc-api.hf.space/v1",
+      "key_env": "AGENT_NYCC_KEY"
+    }
+  }
+}
+```
+
+- The job runs through the Inspect engine as `inspect:openai-api/agent-nycc/nycc-agent`;
+  submissions using the Native engine are rejected with a prompt to switch.
+- The scheduler sets `AGENT_NYCC_BASE_URL` and `AGENT_NYCC_API_KEY` on the pod. The key
+  comes from the API service's own `key_env` variable (here `AGENT_NYCC_KEY`), which
+  must start with `AGENT_`; omit `key_env` for an open endpoint.
+- Agents with a private key run only on LAISR Lab compute, because a pod on a
+  participant's RunPod account could read the key.
+- An agent-and-API-only panel runs on a CPU pod.
+- In EigenBench every model also judges. The endpoint receives EigenBench's
+  reflection and rating prompts as well as response requests, so it must answer
+  those in EigenBench's format: the NYCC wrapper sends them to its base model unchanged.
+
 ## 5. Connect the website
 
 Set these **GitHub repository Actions variables** and rebuild the website:

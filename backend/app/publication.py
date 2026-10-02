@@ -11,6 +11,7 @@ from uuid import UUID
 
 from .results import RatingRow
 from .spec import build_spec
+from . import agents
 
 log = logging.getLogger(__name__)
 
@@ -65,6 +66,7 @@ def export_bundle(job, archive, summary, max_bytes):
     model_meta={}
     for name,ref in config['model_refs'].items():
         model_meta[name]=({'id':ref,'type':'api'} if isinstance(ref,str) else
+            {'id':f"{ref['service']}/{ref['model']}",'type':'agent','endpoint':ref['base_url']} if agents.is_agent(ref) else
             {'id':ref['repo_id'],'type':ref.get('kind','base'),'base_model':ref.get('base_model_id'),'adapter':('/'.join(filter(None,[ref['repo_id'],ref.get('subfolder')]))) if ref.get('kind')=='lora' else None, 'revision':ref.get('revision'),'base_revision':ref.get('base_revision')})
     collection=dict(spec['collection']);collection.pop('evaluations_path',None);collection.pop('enabled',None)
     collection['inspect']=dict(collection.get('inspect',{}));collection['inspect'].pop('log_dir',None)
