@@ -6,6 +6,7 @@ ERRORS = {
     'allocation_unconfirmed': 'RunPod did not confirm allocation within 5 minutes. Check cleanup before retrying.',
     'allocation_rejected': 'RunPod rejected the request. Check your API key, account balance, and GPU settings.',
     'worker_start_timeout': 'The worker did not connect before the startup timeout.',
+    'worker_install_failed': 'The pod could not install the worker packages. See worker output for the install log.',
     'worker_unresponsive': 'The worker stopped sending heartbeats.',
     'runtime_limit': 'The execution-time limit was reached.',
     'evaluation_failed': 'The evaluation process failed. Check worker output for details.',
@@ -40,6 +41,7 @@ def progress(job, now=None):
             title, detail, step = 'Requesting GPU', 'The scheduler requested an instance and is waiting for confirmation from RunPod. Model evaluation has not started.', 1
     elif state == 'running':
         title, detail, step = {
+            'installing': ('Installing the worker', 'The pod is installing the pinned worker packages with pip instead of downloading a container image. The install log appears below.', 1),
             'starting': ('Worker connected', 'Preparing the evaluation configuration.', 2),
             'collecting': ('Collecting responses and judgments', 'The worker is preparing models and running the scenario panel. Model downloads, loading and generation details appear in worker output as they are emitted.', 3),
             'analyzing': ('Computing rankings', 'Responses and judgments have been collected. The worker is computing scores and bootstrap intervals.', 4),

@@ -125,8 +125,8 @@ def tick(db, pods, cfg, now=None):
 
 def main():
     cfg = settings()
-    if not cfg.worker_image or not cfg.api_public_url:
-        raise SystemExit('Set WORKER_IMAGE and API_PUBLIC_URL')
+    if not cfg.api_public_url or (cfg.worker_install == 'image' and not cfg.worker_image):
+        raise SystemExit('Set API_PUBLIC_URL, and WORKER_IMAGE when WORKER_INSTALL=image')
     db = Store(cfg.database_url); pods = RunPod(cfg)
     logging.basicConfig(level=logging.INFO)
     import threading

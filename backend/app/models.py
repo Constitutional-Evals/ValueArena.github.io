@@ -86,7 +86,7 @@ class VisibilityUpdate(BaseModel):
 class WorkerUpdate(BaseModel):
     model_config = ConfigDict(extra='forbid')
     log: Annotated[str, StringConstraints(max_length=64000)] = ''
-    stage: Annotated[str, StringConstraints(pattern=r'^(starting|collecting|analyzing|uploading)$')]
+    stage: Annotated[str, StringConstraints(pattern=r'^(installing|starting|collecting|analyzing|uploading)$')]
 
 
 class WorkerFinish(BaseModel):

@@ -76,7 +76,28 @@ This upstream revision supports at most rank-512 LoRA adapters in its native run
 Higher-rank native adapters are rejected before GPU provisioning. Use a compatible
 adapter or merged full checkpoint; the website does not patch upstream vLLM code.
 
-## 2. Build the EigenBench GPU worker
+## 2. The EigenBench worker
+
+By default (`WORKER_INSTALL=pip`) pods do not download a worker image. The scheduler
+starts a stock image that RunPod hosts usually have cached — `POD_GPU_BASE_IMAGE`
+(default `runpod/pytorch:2.8.0-py3.11-cuda12.8.1-cudnn-devel-ubuntu22.04`) or
+`POD_CPU_BASE_IMAGE` (default `python:3.11-slim`) — and runs `app/bootstrap.py` on it.
+The bootstrap downloads the worker code from the API (`/internal/jobs/{id}/worker-bundle`,
+so it always matches the deployed version), installs uv and a Python 3.11 environment,
+and installs the hash-pinned packages in `worker-env/gpu.txt` or `worker-env/cpu.txt`.
+GPU pods also get the CUDA 13.0 compiler from pip for FlashInfer and check it compiles
+and loads a kernel. The run page shows the stage **Installing the worker** with the pip
+log; a failed install ends the run as `worker_install_failed`. API-only (CPU) panels
+install no vLLM and the CPU build of PyTorch, about 20 seconds of installing.
+
+`worker-env/gpu.txt` is the exact package set of the verified worker image
+(`gpu.in`), plus the CUDA 13.0 toolkit wheels (`cuda-toolkit.txt`). See
+`worker-env/README.md` to regenerate the locks after changing packages.
+
+Set `WORKER_INSTALL=image` to run `WORKER_IMAGE` instead, as below. The image is
+about 7.7 GB compressed, and every new RunPod host downloads it before the run starts.
+
+### Building the worker image (`WORKER_INSTALL=image`)
 
 Alternatively to a local build, run **Actions → Build evaluation worker → Run
 workflow** in GitHub. It builds a Linux AMD64 image and publishes it to
@@ -125,7 +146,9 @@ Run `python -m app.admin init-db` once before accepting traffic.
 `python -m app.scheduler`. There is no HTTP health check. Disable scale-to-zero
 and use an always-restart policy where the hosting plan supports it.
 Give it the same database and `WORKER_SECRET`, plus `RUNPOD_API_KEY`,
-`WORKER_IMAGE`, `API_PUBLIC_URL`, `OPENROUTER_API_KEY`, and optional `HF_TOKEN`.
+`API_PUBLIC_URL`, `OPENROUTER_API_KEY`, and optional `HF_TOKEN` (and `WORKER_IMAGE`
+when `WORKER_INSTALL=image`). A pod that has not reported within `STARTUP_TIMEOUT`
+seconds (default 1800) is stopped; while installing it reports every 15 seconds.
 Current Settings validation also requires the Supabase variables on this service.
 Use `MAX_RUNNING_JOBS=1` initially. The API itself does not need RunPod or model keys.
 

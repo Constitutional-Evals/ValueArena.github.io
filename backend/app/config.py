@@ -1,5 +1,6 @@
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -19,12 +20,17 @@ class Settings(BaseSettings):
     api_public_url: str = ''
     runpod_api_key: str = ''
     worker_image: str = ''
+    # "pip": start a stock image RunPod hosts usually have cached and pip-install the pinned worker
+    # environment (app/bootstrap.py). "image": run WORKER_IMAGE, downloading it on every new host.
+    worker_install: Literal['pip', 'image'] = 'pip'
+    pod_gpu_base_image: str = 'runpod/pytorch:2.8.0-py3.11-cuda12.8.1-cudnn-devel-ubuntu22.04'
+    pod_cpu_base_image: str = 'python:3.11-slim'
     runpod_gpu_type: str = 'NVIDIA A40'
     runpod_gpu_count: int = Field(default=1, ge=1, le=8)
     runpod_disk_gb: int = Field(default=100, ge=30, le=1000)
     max_running_jobs: int = Field(default=1, ge=1, le=10)
     scheduler_interval: int = Field(default=10, ge=1, le=60)
-    startup_timeout: int = Field(default=900, ge=60)
+    startup_timeout: int = Field(default=1800, ge=60)
     heartbeat_timeout: int = Field(default=180, ge=60)
     max_artifact_bytes: int = Field(default=50_000_000, ge=1)
     model_catalog_path: Path = Path('catalog.json')
