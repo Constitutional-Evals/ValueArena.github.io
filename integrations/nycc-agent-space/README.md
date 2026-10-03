@@ -18,5 +18,6 @@ nginx routes `/v1/*` and `/healthz` to it and everything else to the UI.
 
 - `POST /v1/chat/completions` with model `nycc-agent` (the full agent: NYCC prompt,
   constitution, tools) or `nycc-base` (the same base model alone), `GET /v1/models`.
-- Secret `NYCC_API_KEY`: callers must send it as `Authorization: Bearer …`.
+- Optional secret `NYCC_API_KEY`: if set, callers must send it as `Authorization: Bearer …`;
+  unset, the API is open, like the chat UI.
   Optional variables: `AGENT_CONCURRENCY` (default 4), `AGENT_ON_FAILURE` (`answer` or `empty`).
