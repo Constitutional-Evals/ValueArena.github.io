@@ -6,13 +6,17 @@ FROM python:3.12-slim
 # on startup with a PermissionError.
 RUN useradd -m -u 1000 user
 
+# nginx shares the Space's single public port between the chat UI and the API.
+RUN apt-get update && apt-get install -y --no-install-recommends nginx \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 COPY requirements.txt .
 
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY local_ai.py api.py ./
+COPY local_ai.py api.py nginx.conf start.sh ./
 COPY orchestrators ./orchestrators
 COPY ui ./ui
 COPY prompts ./prompts
@@ -26,8 +30,8 @@ ENV HOME=/home/user \
     PATH=/home/user/.local/bin:$PATH \
     FEEDBACK_DIR=/home/user/feedback
 
-EXPOSE 7860
+EXPOSE 8501
 
-# OpenAI-compatible API for EigenBench / ValueArena (see api.py). The chat UI
-# stays in the LAISR/NYCC Space; a Space serves one port, so this is its own Space.
-CMD ["uvicorn", "api:app", "--host", "0.0.0.0", "--port", "7860"]
+# 8501 (app_port) is nginx: /v1/* goes to the OpenAI-compatible agent API used by
+# EigenBench and ValueArena (api.py), everything else to the agent chat UI.
+CMD ["bash", "start.sh"]

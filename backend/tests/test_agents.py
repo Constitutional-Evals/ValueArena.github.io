@@ -16,7 +16,7 @@ from test_backend import Auth, USER, payload, submit
 from test_publication import SUMMARY, archive
 
 AGENT = {'provider': 'agent_endpoint', 'service': 'agent-nycc', 'model': 'nycc-agent',
-         'base_url': 'https://laisr-nycc-api.hf.space/v1', 'key_env': 'AGENT_NYCC_KEY'}
+         'base_url': 'https://laisr-nycc.hf.space/v1', 'key_env': 'AGENT_NYCC_KEY'}
 
 
 @pytest.fixture

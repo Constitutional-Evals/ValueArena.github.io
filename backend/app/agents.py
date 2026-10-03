@@ -2,7 +2,7 @@
 
 A catalog entry such as
     {"label": "NYCC agent (LAISR)", "ref": {"provider": "agent_endpoint", "service": "agent-nycc",
-     "model": "nycc-agent", "base_url": "https://laisr-nycc-api.hf.space/v1", "key_env": "AGENT_NYCC_KEY"}}
+     "model": "nycc-agent", "base_url": "https://laisr-nycc.hf.space/v1", "key_env": "AGENT_NYCC_KEY"}}
 runs through EigenBench's Inspect engine as ``inspect:openai-api/agent-nycc/nycc-agent``. Inspect reads
 the endpoint from AGENT_NYCC_BASE_URL and AGENT_NYCC_API_KEY, which the scheduler sets on the pod.
 

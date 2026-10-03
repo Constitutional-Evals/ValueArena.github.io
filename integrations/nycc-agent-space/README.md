@@ -1,21 +1,22 @@
 ---
-title: NYCC Agent API
+title: NYCC
 emoji: 📊
 colorFrom: purple
 colorTo: indigo
 sdk: docker
 pinned: false
-short_description: OpenAI-compatible API for the NYCC agent (EigenBench)
-app_port: 7860
+short_description: NYCC Proxy Agent for character training
+app_port: 8501
 ---
 
-OpenAI-compatible endpoint for the NYCC agent, used to evaluate it with
-EigenBench and ValueArena. Same code as the LAISR/NYCC Space plus `api.py`.
+Check out the configuration reference at https://huggingface.co/docs/hub/spaces-config-reference
 
-- `POST /v1/chat/completions` with model `nycc-agent` (the full agent: NYCC
-  prompt, constitution, tools) or `nycc-base` (the same base model alone).
-- `GET /v1/models`, `GET /healthz`.
+## API for EigenBench / ValueArena
 
-Secrets: `OPENROUTER_API_KEY` (required) and `NYCC_API_KEY` (callers send it as
-`Authorization: Bearer …`). Optional variables: `AGENT_CONCURRENCY` (default 4)
-and `AGENT_ON_FAILURE` (`answer` or `empty`). See `api.py` for details.
+The same Space also serves an OpenAI-compatible API (`api.py`) next to the chat UI;
+nginx routes `/v1/*` and `/healthz` to it and everything else to the UI.
+
+- `POST /v1/chat/completions` with model `nycc-agent` (the full agent: NYCC prompt,
+  constitution, tools) or `nycc-base` (the same base model alone), `GET /v1/models`.
+- Secret `NYCC_API_KEY`: callers must send it as `Authorization: Bearer …`.
+  Optional variables: `AGENT_CONCURRENCY` (default 4), `AGENT_ON_FAILURE` (`answer` or `empty`).

@@ -27,7 +27,8 @@ Configuration (Space variables and secrets):
                          sentence, which is what a real user would see; "empty"
                          returns an empty completion so the caller retries.
 
-Run: uvicorn api:app --host 0.0.0.0 --port 7860
+In the Space, start.sh runs this on 127.0.0.1:8000 and nginx exposes it at /v1 on
+the Space's public port, next to the chat UI. Locally: uvicorn api:app --port 8000
 """
 
 import asyncio

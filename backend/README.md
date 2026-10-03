@@ -188,7 +188,7 @@ add agents, through the catalog; submissions cannot name a URL.
       "provider": "agent_endpoint",
       "service": "agent-nycc",
       "model": "nycc-agent",
-      "base_url": "https://laisr-nycc-api.hf.space/v1",
+      "base_url": "https://laisr-nycc.hf.space/v1",
       "key_env": "AGENT_NYCC_KEY"
     }
   }
