@@ -17,6 +17,10 @@ VLLM_SERVER_ARGS = {'max_model_len': 8192, 'gpu_memory_utilization': 0.9, 'enfor
                     'timeout': 3600, 'configure_logging': True, 'disable_uvicorn_access_log': True}
 # The server's last lines, repeated in the failure summary.
 vllm_tail = deque(maxlen=12)
+# Inspect retries a failing model call indefinitely, backing off up to 30 minutes between tries,
+# so one endpoint that always fails (an agent returning HTTP 500) stalled a run for hours. Six
+# tries cover rate limits and brief outages (about two minutes of backoff).
+MAX_RETRIES = 6
 
 
 def show_vllm_output():
@@ -65,11 +69,31 @@ def kill_process_tree(pid):
     psutil.wait_procs(alive, timeout=10)
 
 
-def patch_runtime():
+def patch_runtime(failure_policy='omit_invalid_judgments'):
     """Fixes to the pinned Inspect and EigenBench applied in the collection process."""
     from inspect_ai._util import local_server
     import inspect_pipeline.collect as collect
     local_server.kill_process_tree = kill_process_tree
+
+    eval_kwargs = collect.eval_kwargs
+    def bounded_retries(inspect_cfg, log_dir):
+        kwargs = eval_kwargs(inspect_cfg, log_dir)
+        kwargs.setdefault('max_retries', MAX_RETRIES)
+        return kwargs
+    collect.eval_kwargs = bounded_retries
+
+    # The Inspect export is always strict: one failed judgment exported nothing and failed the
+    # run. Follow the run's collection.failure_policy, as the native engine does.
+    if failure_policy == 'omit_invalid_judgments':
+        records_from_logs, export_log = collect.records_from_logs, collect.export_log
+        def report(logs):
+            failed = sum(1 for log in logs for sample in (log.samples or []) if sample.error)
+            if failed: print(f'Omitting {failed} failed judgment(s) (failure_policy=omit_invalid_judgments).', flush=True)
+        def lenient_records(logs, strict=True):
+            report(logs); return records_from_logs(logs, strict=False)
+        def lenient_export(log, **kwargs):
+            report([log]); return export_log(log, **{**kwargs, 'strict': False})
+        collect.records_from_logs, collect.export_log = lenient_records, lenient_export
     # The phased runner closes each model after its phase to free the GPU, but that also closes
     # API models' HTTP clients, and the same model objects judge later: "Cannot send a request,
     # as the client has been closed". Only local vLLM servers need closing.
@@ -107,7 +131,8 @@ def collect_inspect(spec):
     from pipeline.config import load_run_spec
     os.environ.setdefault('VLLM_DEFAULT_SERVER_ARGS', json.dumps(VLLM_SERVER_ARGS))
     show_vllm_output()
-    patch_runtime()
+    loaded, _ = load_run_spec(spec)
+    patch_runtime(loaded.get('collection', {}).get('failure_policy', 'strict'))
     try:
         collect_direct_ratings_inspect(spec)
     except Exception:

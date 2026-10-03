@@ -97,6 +97,26 @@ def _text(content) -> str:
     return ""
 
 
+def _complete(messages: list, temperature: float, max_tokens: int) -> tuple[str, str]:
+    """call_model for the passthrough route, as (content, finish_reason).
+
+    The base model reasons before answering. When its reasoning uses the whole token budget,
+    OpenRouter returns no content and call_model fails on it; EigenBench's rating budget (512
+    tokens) is short enough for that to happen, and the 500s were retried indefinitely. Retry
+    once with room to reason, then return an empty, cut-off answer, which the caller can treat
+    as an invalid judgment. Provider errors (rate limits, credit) become 502s with their message.
+    """
+    for budget in (max_tokens, min(8192, max(4 * max_tokens, 2048))):
+        try:
+            return call_model(messages, temperature, budget), "stop"
+        except AttributeError as error:  # content was null
+            if "NoneType" not in str(error):
+                raise
+        except RuntimeError as error:  # "Model request failed (status): provider message"
+            raise HTTPException(502, str(error)) from error
+    return "", "length"
+
+
 def _authorize(authorization: str | None):
     if not API_KEY:
         return
@@ -125,6 +145,7 @@ async def chat(req: ChatRequest, authorization: str | None = Header(default=None
     system = "\n".join(m["content"] for m in messages if m["role"] == "system").strip()
     users = [m["content"] for m in messages if m["role"] == "user"]
     tools_used: list[str] = []
+    finish_reason = "stop"
     async with state["gate"]:
         if req.model == "nycc-agent" and system.startswith(RESPONSE_PROMPT) and users:
             result = await answer_query_agentic(state["client"], state["catalog"], f"{system}\n\n{users[-1]}")
@@ -135,13 +156,13 @@ async def chat(req: ChatRequest, authorization: str | None = Header(default=None
         else:
             temperature = 0.7 if req.temperature is None else req.temperature
             max_tokens = req.max_completion_tokens or req.max_tokens or 4096
-            content = await asyncio.to_thread(call_model, messages, temperature, max_tokens)
+            content, finish_reason = await asyncio.to_thread(_complete, messages, temperature, max_tokens)
     return {
         "id": f"chatcmpl-{uuid.uuid4().hex}",
         "object": "chat.completion",
         "created": int(time.time()),
         "model": req.model,
-        "choices": [{"index": 0, "message": {"role": "assistant", "content": content}, "finish_reason": "stop"}],
+        "choices": [{"index": 0, "message": {"role": "assistant", "content": content}, "finish_reason": finish_reason}],
         "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
         # Not part of the OpenAI schema; clients ignore it. Useful when reading logs.
         "nycc_tools_used": tools_used,

@@ -42,14 +42,17 @@ def upstream(monkeypatch, tmp_path):
     class VLLMAPI: pass
     modules = {
         'inspect_pipeline': types.ModuleType('inspect_pipeline'),
-        'inspect_pipeline.collect': NS(collect_direct_ratings_inspect=collect, _close_model=close_model),
+        'inspect_pipeline.collect': NS(collect_direct_ratings_inspect=collect, _close_model=close_model,
+                                       eval_kwargs=lambda cfg, log_dir: {'log_dir': str(log_dir), 'fail_on_error': False},
+                                       records_from_logs=lambda logs, strict=True: ('records', strict),
+                                       export_log=lambda log, **kwargs: ('export', kwargs.get('strict', True))),
         'inspect_ai._util': types.ModuleType('inspect_ai._util'),
         'inspect_ai._util.local_server': NS(kill_process_tree=None),
         'inspect_ai.model': types.ModuleType('inspect_ai.model'),
         'inspect_ai.model._providers': types.ModuleType('inspect_ai.model._providers'),
         'inspect_ai.model._providers.vllm': NS(VLLMAPI=VLLMAPI),
         'pipeline': types.ModuleType('pipeline'),
-        'pipeline.config': NS(load_run_spec=lambda spec: ({'collection': {'evaluations_path': str(tmp_path/'evaluations.jsonl')}}, tmp_path)),
+        'pipeline.config': NS(load_run_spec=lambda spec: ({'collection': {'evaluations_path': str(tmp_path/'evaluations.jsonl'), **seen.get('collection', {})}}, tmp_path)),
         'inspect_ai': types.ModuleType('inspect_ai'),
         'inspect_ai.log': NS(list_eval_logs=lambda d: (seen.setdefault('log_dir', d), list(logs))[1], read_eval_log=logs.__getitem__),
     }
@@ -111,3 +114,22 @@ def test_kill_process_tree_stops_children():
     stage.kill_process_tree(server.pid)
     server.wait(timeout=5)
     assert not child.is_running() or child.status() == psutil.STATUS_ZOMBIE
+
+
+def test_retries_are_bounded_and_the_failure_policy_reaches_the_inspect_export(upstream, capsys):
+    seen, _ = upstream
+    collect = sys.modules['inspect_pipeline.collect']
+    # strict (the upstream default): exports stay strict, retries are still bounded
+    with pytest.raises(SystemExit):
+        stage.collect_inspect('spec.py')
+    assert collect.eval_kwargs({}, 'logs') == {'log_dir': 'logs', 'fail_on_error': False, 'max_retries': stage.MAX_RETRIES}
+    assert collect.records_from_logs([]) == ('records', True)
+
+    # the hosted default omits failed judgments instead of exporting nothing
+    seen['collection'] = {'failure_policy': 'omit_invalid_judgments'}
+    with pytest.raises(SystemExit):
+        stage.collect_inspect('spec.py')
+    failed = NS(samples=[sample('InternalServerError 500'), sample(), sample('InternalServerError 500')])
+    assert collect.records_from_logs([failed]) == ('records', False)
+    assert collect.export_log(failed, evaluations_path='e.jsonl') == ('export', False)
+    assert 'Omitting 2 failed judgment(s)' in capsys.readouterr().out
