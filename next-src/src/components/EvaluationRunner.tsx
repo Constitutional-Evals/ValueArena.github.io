@@ -65,6 +65,8 @@ export function EvaluationRunner() {
   const [runsError, setRunsError] = useState('');
   const [runsRefreshing, setRunsRefreshing] = useState(false);
   const [runsRetry, setRunsRetry] = useState(0);
+  // Visitors can fill in the form before logging in; submitting asks them to log in first.
+  const [loginOpen, setLoginOpen] = useState(false);
   const submission = useRef<{ body: string; key: string } | null>(null);
 
   useEffect(() => {
@@ -75,10 +77,19 @@ export function EvaluationRunner() {
       if (!alive) return;
       setSession(next); setAuthReady(true);
       if (event === 'PASSWORD_RECOVERY') { setTab('account'); setNotice('Choose a new password below.'); }
-      if (!next) { recentlySubmitted.current.clear(); setOrKey(''); setRpKey(''); setHfToken(''); setJobs([]); submission.current = null; }
+      if (!next) { setTab('new'); recentlySubmitted.current.clear(); setOrKey(''); setRpKey(''); setHfToken(''); setJobs([]); submission.current = null; }
     });
     return () => { alive = false; data.subscription.unsubscribe(); };
   }, [auth]);
+
+  useEffect(() => {
+    if (!loginOpen) return;
+    if (session) { setLoginOpen(false); setNotice('You’re logged in. Your settings are still here; review them and run the evaluation.'); return; }
+    document.querySelector<HTMLInputElement>('.eval-login-dialog input')?.focus();
+    const close = (e: KeyboardEvent) => { if (e.key === 'Escape') setLoginOpen(false); };
+    document.addEventListener('keydown', close);
+    return () => document.removeEventListener('keydown', close);
+  }, [loginOpen, session]);
 
   useEffect(() => {
     setAccess('loading'); setAccessError(''); setIsAdmin(false); setEnabled(false);
@@ -118,14 +129,15 @@ export function EvaluationRunner() {
   useEffect(() => {
     setModels([]); setJobs([]); setDirectory([]);
     setRunsLoaded(false); setRunsError(''); recentlySubmitted.current.clear();
-    if (!session || !evaluationAPI) return;
+    if (!evaluationAPI) return;
     let alive = true;
     const controller = new AbortController();
     const options = { signal: controller.signal };
-    void request('/models', options).then(r => r.json()).then(data => {
+    // The preset list is public, so visitors who have not logged in can build a panel too.
+    void request('/models', options, true).then(r => r.json()).then(data => {
       if (alive) setModels(data.models);
     }).catch(e => { if (alive) setError(`Could not load models: ${e.message}`); });
-    void request('/models/openrouter', options).then(r => r.json()).then(data => {
+    if (session) void request('/models/openrouter', options).then(r => r.json()).then(data => {
       if (alive) setDirectory(data.models);
     }).catch(() => {});
     return () => { alive = false; controller.abort(); };
@@ -250,13 +262,14 @@ export function EvaluationRunner() {
   if ((limits.max_models !== null && selected.length > limits.max_models)) blockers.push(`Remove models to stay within your ${limits.max_models}-model limit.`);
   if (!criteria.trim()) blockers.push('Add at least one constitution criterion.');
   if (!advancedValid) blockers.push('Fix the JSON in Advanced configuration.');
-  if (!submissionsEnabled) blockers.push('New evaluations are paused by an administrator.');
-  if (access !== 'approved') blockers.push('Your account needs approval before running evaluations.');
+  if (session && !submissionsEnabled) blockers.push('New evaluations are paused by an administrator.');
+  if (session && access !== 'approved') blockers.push('Your account needs approval before running evaluations.');
   if (ownKeys) {
     if (!limits.allow_own_keys) blockers.push('Personal provider keys are disabled for your account.');
     if (!orKey.trim()) blockers.push('Enter your OpenRouter API key.');
     if (!rpKey.trim()) blockers.push('Enter your RunPod API key.');
-  } else if (!enabled) blockers.push('Service-funded evaluations are disabled for your account. Contact an administrator.');
+  } else if (!session) { /* Account checks run after login. */ }
+  else if (!enabled) blockers.push('Service-funded evaluations are disabled for your account. Contact an administrator.');
   else if (limits.require_credits && credits === null) blockers.push('Waiting for your credit balance.');
   else if (limits.require_credits && (credits ?? 0) < 300) blockers.push('Your account needs at least five minutes of execution credits. Ask an administrator to add credits or use your provider keys.');
   if (visibility === 'public' && !limits.allow_public_results) blockers.push('Choose private results; public publishing is disabled for your account.');
@@ -267,6 +280,7 @@ export function EvaluationRunner() {
     event.preventDefault();
     if (submissionPending.current) return;
     setError(''); setNotice('');
+    if (!session) { setLoginOpen(true); return; }
     const form = event.currentTarget as HTMLFormElement;
     if (blockers.length) {
       document.getElementById('evaluation-blockers')?.focus();
@@ -313,17 +327,24 @@ export function EvaluationRunner() {
 
   if (!auth || !evaluationAPI) return <p className="evaluation-notice">The evaluation service is not connected yet.</p>;
   if (!authReady) return <div className="evaluation-notice eval-status" role="status"><Penguin size={40} state="loading" /><span>Loading your workspace…</span></div>;
-  if (!session) return <EvaluationLogin />;
+  const guest = !session;
 
   if (submitting) return <section className="eval-submission-screen" aria-busy="true" role="status" aria-live="polite"><Penguin size={72} state="loading" /><h1>Submitting your evaluation</h1><p>Checking model access and saving your settings. This can take a moment.</p><p>You’ll be taken to Your evaluations as soon as the request is accepted.</p></section>;
 
   return <>
-    <div className="evaluation-account"><span className="evaluation-account-user"><small>Signed in as</small>{session.user.user_metadata.username || session.user.email}</span><div className="evaluation-account-actions">{isAdmin && <a href="/admin/">Administration</a>}<button onClick={() => void auth.auth.signOut()}>Sign out</button></div></div>
-    <nav className="eval-tabs" aria-label="Evaluation workspace">{(['new', 'runs', 'account'] as const).map(t => <button key={t} aria-current={tab === t ? 'page' : undefined} onClick={() => setTab(t)}>{t === 'new' ? 'New evaluation' : t === 'runs' ? `Your evaluations${runsLoaded || jobs.length ? ` (${jobs.length})` : ''}` : 'Account'}</button>)}</nav>
+    {session ? <div className="evaluation-account"><span className="evaluation-account-user"><small>Signed in as</small>{session.user.user_metadata.username || session.user.email}</span><div className="evaluation-account-actions">{isAdmin && <a href="/admin/">Administration</a>}<button onClick={() => void auth.auth.signOut()}>Sign out</button></div></div>
+    : <div className="evaluation-account"><span className="evaluation-account-user"><small>Not logged in</small>Set up an evaluation, then log in to run it.</span><div className="evaluation-account-actions"><button onClick={() => setLoginOpen(true)}>Log in</button></div></div>}
+    {loginOpen && !session && <div className="eval-login-overlay" onClick={e => { if (e.target === e.currentTarget) setLoginOpen(false); }}>
+      <div className="eval-login-dialog" role="dialog" aria-modal="true" aria-label="Log in to run your evaluation">
+        <div className="eval-login-reason"><p role="status">Log in or create an account to run evaluations. Your settings stay on this page while you log in.</p><button type="button" className="eval-login-close" aria-label="Close" onClick={() => setLoginOpen(false)}>×</button></div>
+        <EvaluationLogin />
+      </div>
+    </div>}
+    {session && <nav className="eval-tabs" aria-label="Evaluation workspace">{(['new', 'runs', 'account'] as const).map(t => <button key={t} aria-current={tab === t ? 'page' : undefined} onClick={() => setTab(t)}>{t === 'new' ? 'New evaluation' : t === 'runs' ? `Your evaluations${runsLoaded || jobs.length ? ` (${jobs.length})` : ''}` : 'Account'}</button>)}</nav>}
     {error && <p role="alert" className="evaluation-notice">{error}</p>}{notice && <p role="status" className="evaluation-notice">{notice}</p>}
-    {tab === 'account' && <form className="evaluation-form eval-account-form" onSubmit={saveAccount}><h2>Your account</h2><p>{session.user.email}</p><label>Username<input required pattern="[a-zA-Z0-9_.-]+" minLength={2} maxLength={40} value={username} onChange={e => setUsername(e.target.value)} autoComplete="nickname" /></label><label>Set a password<input type="password" minLength={12} value={password} onChange={e => setPassword(e.target.value)} autoComplete="new-password" /><small>Leave blank to keep your existing password.</small></label><button className="button-primary" disabled={busy}>Save account</button></form>}
-    {tab === 'new' && access!=='approved' && <div className="evaluation-notice eval-status" role="status"><Penguin size={40} state={access==='loading'?'loading':'idle'} /><span>{access==='error'?accessError:access==='loading'?'Checking account access…':access==='pending'?'Your access request is waiting for administrator approval.':`Your account is ${access}. Contact an administrator.`}</span>{access==='error' && <button type="button" onClick={() => setAccessRetry(n => n + 1)}>Retry account check</button>}</div>}
-    {tab === 'new' && access==='approved' && <form className="evaluation-form eval-workspace eval-deploy" noValidate onSubmit={submit}>
+    {session && tab === 'account' && <form className="evaluation-form eval-account-form" onSubmit={saveAccount}><h2>Your account</h2><p>{session.user.email}</p><label>Username<input required pattern="[a-zA-Z0-9_.-]+" minLength={2} maxLength={40} value={username} onChange={e => setUsername(e.target.value)} autoComplete="nickname" /></label><label>Set a password<input type="password" minLength={12} value={password} onChange={e => setPassword(e.target.value)} autoComplete="new-password" /><small>Leave blank to keep your existing password.</small></label><button className="button-primary" disabled={busy}>Save account</button></form>}
+    {tab === 'new' && !guest && access!=='approved' && <div className="evaluation-notice eval-status" role="status"><Penguin size={40} state={access==='loading'?'loading':'idle'} /><span>{access==='error'?accessError:access==='loading'?'Checking account access…':access==='pending'?'Your access request is waiting for administrator approval.':`Your account is ${access}. Contact an administrator.`}</span>{access==='error' && <button type="button" onClick={() => setAccessRetry(n => n + 1)}>Retry account check</button>}</div>}
+    {tab === 'new' && (guest || access==='approved') && <form className="evaluation-form eval-workspace eval-deploy" noValidate onSubmit={submit}>
       <div className="eval-main">
         <section className="eval-section"><header><span>01</span><h2>Models</h2><em className="eval-count">{selected.length} selected</em></header>
           <p>Each model answers the scenarios and judges the responses. {limits.max_models===null?'Choose at least two models.':`Choose 2–${limits.max_models} models.`}</p>
@@ -346,7 +367,7 @@ export function EvaluationRunner() {
         <section className="eval-section"><header><span>04</span><h2>Compute &amp; run</h2></header>
           <div className="eval-fields"><label>Evaluation name<input required maxLength={120} value={name} onChange={e => setName(e.target.value)} placeholder="Humor / Qwen comparison" /></label><label>Engine<select value={engine} onChange={e => setEngine(e.target.value)}><option value="native">Native EigenBench</option><option value="inspect">Inspect</option></select></label></div>
           <div className="eval-choice" role="radiogroup" aria-label="Compute and API access">
-            <label className="eval-choice-card"><input type="radio" name="funding" checked={!ownKeys} onChange={() => {setOwnKeys(false); if (!isAdmin) {setGPUCount(1); setVolume(0);}}} /><strong>LAISR Lab compute</strong><small>{enabled ? (limits.require_credits ? `${Math.floor((credits ?? 0) / 60)} compute minutes available.` : 'LAISR Lab compute. No execution credit limit.') : 'LAISR Lab compute is not enabled for your account. Contact an administrator.'}</small></label>
+            <label className="eval-choice-card"><input type="radio" name="funding" checked={!ownKeys} onChange={() => {setOwnKeys(false); if (!isAdmin) {setGPUCount(1); setVolume(0);}}} /><strong>LAISR Lab compute</strong><small>{guest ? 'Runs on the lab’s compute once your account is approved.' : enabled ? (limits.require_credits ? `${Math.floor((credits ?? 0) / 60)} compute minutes available.` : 'LAISR Lab compute. No execution credit limit.') : 'LAISR Lab compute is not enabled for your account. Contact an administrator.'}</small></label>
             <label className="eval-choice-card"><input type="radio" name="funding" checked={ownKeys} onChange={() => setOwnKeys(true)} /><strong>My provider keys</strong><small>Charged to your OpenRouter and RunPod accounts.</small></label>
           </div>
           {ownKeys && <><div className="eval-fields"><label>OpenRouter API key<input type="password" required value={orKey} onChange={e => setOrKey(e.target.value)} autoComplete="off" /></label><label>RunPod API key<input type="password" required value={rpKey} onChange={e => setRpKey(e.target.value)} autoComplete="off" /></label></div><small>Keys are encrypted and removed after confirmed compute cleanup.</small></>}
@@ -366,7 +387,7 @@ export function EvaluationRunner() {
             </>}
           </fieldset>
           {computeType === 'gpu' && <>
-          <div className="eval-gpu-head"><span className="eval-gpu-label">GPU</span><button type="button" className="eval-link-button" disabled={stockBusy} onClick={() => void checkStock()}>{stockBusy ? 'Checking RunPod…' : 'Check availability'}</button></div>
+          <div className="eval-gpu-head"><span className="eval-gpu-label">GPU</span><button type="button" className="eval-link-button" disabled={stockBusy || guest} onClick={() => void checkStock()}>{stockBusy ? 'Checking RunPod…' : 'Check availability'}</button></div>
           <p className="eval-capacity-note" data-warning={selectedStock?.stock === 'None' || selectedStock?.stock === 'Low' || !!stockError} role="status">{capacityMessage}</p>
           <fieldset className="eval-gpu" disabled={!ownKeys && !isAdmin}><legend className="sr-only">GPU</legend><div className="eval-gpu-grid" aria-live="polite">{gpuTypes.map(g => { const item = stock && stock.disk_gb === (ownKeys || isAdmin ? disk + volume : 100) && stock.gpu_count === (ownKeys || isAdmin ? gpuCount : 1) ? stock.gpus.find(x => x.id === g) : undefined; return <label className="eval-choice-card eval-gpu-card" key={g} data-stock={item ? (item.stock === 'None' ? 'none' : item.stock === 'Unknown' ? 'unknown' : 'ok') : undefined}><input type="radio" name="gpu" checked={(ownKeys || isAdmin ? gpu : gpuTypes[0]) === g} onChange={() => setGPU(g)} /><strong>{g.replace('NVIDIA ', '').replace('GeForce ', '')}</strong><small>{item ? <>{item.stock === 'None' ? 'No matching capacity' : item.stock === 'Unknown' ? 'Capacity unconfirmed' : `${item.stock} stock`}{item.price_per_hour != null && ` · $${item.price_per_hour.toFixed(2)}/hr`}</> : stockBusy ? 'Checking capacity…' : 'Capacity not checked'}</small></label>; })}</div><small>GPUs are allocated together on one instance. Model size must fit the selected GPU memory.{!ownKeys && !isAdmin && ' LAISR Lab compute uses the default GPU.'}{stock && stock.disk_gb === (ownKeys || isAdmin ? disk + volume : 100) && stock.gpu_count === (ownKeys || isAdmin ? gpuCount : 1) && ` Secure Cloud · CUDA ${stock.min_cuda_version}+ · ${stock.disk_gb} GB disk · checked ${new Date(stock.checked_at * 1000).toLocaleTimeString()}. Stock can change before allocation.`}</small></fieldset>
           </>}
@@ -388,10 +409,10 @@ export function EvaluationRunner() {
           <div><dt>Results</dt><dd>{visibility === 'public' ? 'Public' : 'Private'}</dd></div>
           {!ownKeys && limits.require_credits && <div><dt>Credits</dt><dd>{Math.floor((credits ?? 0) / 60)} min</dd></div>}
         </dl>
-        <div className="eval-submit"><button className="button-primary" disabled={busy} aria-describedby={blockers.length ? "evaluation-blockers" : undefined}>{busy ? 'Preparing…' : 'Run evaluation →'}</button>{blockers.length>0 && <div id="evaluation-blockers" tabIndex={-1} aria-live="polite"><strong>Before you can run</strong><ul>{blockers.map((message,i)=><li key={i}>{message}</li>)}</ul></div>}{error && <p role="alert">{error}</p>}<small>Runs continue in the background until complete or cancelled.{limits.max_runtime_seconds!==null && ` Admin runtime limit: ${Math.round(limits.max_runtime_seconds/60)} minutes.`}{!ownKeys && limits.require_credits && " Runs also stop when their reserved execution credits are used; unused time is returned."}</small></div>
+        <div className="eval-submit"><button className="button-primary" disabled={busy} aria-describedby={blockers.length ? "evaluation-blockers" : undefined}>{busy ? 'Preparing…' : guest ? 'Log in to run →' : 'Run evaluation →'}</button>{blockers.length>0 && <div id="evaluation-blockers" tabIndex={-1} aria-live="polite"><strong>Before you can run</strong><ul>{blockers.map((message,i)=><li key={i}>{message}</li>)}</ul></div>}{error && <p role="alert">{error}</p>}<small>{guest && 'You’ll be asked to log in before the run starts. '}Runs continue in the background until complete or cancelled.{limits.max_runtime_seconds!==null && ` Admin runtime limit: ${Math.round(limits.max_runtime_seconds/60)} minutes.`}{!ownKeys && limits.require_credits && " Runs also stop when their reserved execution credits are used; unused time is returned."}</small></div>
       </aside>
     </form>}
-    {tab === 'runs' && <section className="evaluation-jobs"><h2>Your evaluations</h2>{!runsLoaded && !jobs.length && !runsError && <div className="eval-history-loading" role="status" aria-live="polite" aria-busy="true"><Penguin size={48} state="loading" /><p>Loading your evaluations…</p></div>}{runsError && <div role="alert"><p>{runsError}</p><button type="button" className="button-secondary" disabled={runsRefreshing} onClick={() => setRunsRetry(n => n + 1)}>{runsRefreshing ? 'Retrying…' : 'Retry loading evaluations'}</button></div>}{runsLoaded && !jobs.length && !runsError && <p>No evaluations yet. Submitted runs will appear here.</p>}{jobs.some(job => job.state === 'succeeded') && <section className="eval-success-section" aria-labelledby="successful-runs-title"><h3 id="successful-runs-title">Successful runs</h3><div className="eval-success-scroll"><table className="eval-success-table"><thead><tr><th scope="col">Run</th><th scope="col">Constitution</th><th scope="col">Models</th><th scope="col">Scenarios</th><th scope="col">Results</th></tr></thead><tbody>{jobs.filter(job => job.state === 'succeeded').map(job => <tr key={job.id}><th scope="row">{job.name}</th><td>{job.constitution}</td><td>{job.models_count}</td><td>{job.scenario_count}</td><td><div className="eval-success-actions"><a href={`/run/?slug=account/${job.id}`}>View results →</a><a href={`/transcript/?run=account/${job.id}`}>Transcripts</a></div></td></tr>)}</tbody></table></div></section>}{jobs.length > 0 && <h3>All runs</h3>}{jobs.map(job => { const open = openRuns[job.id] ?? isActive(job.state); const body = `run-body-${job.id}`; return <article className={`eval-job${open ? ' is-open' : ''}`} key={job.id}>
+    {session && tab === 'runs' && <section className="evaluation-jobs"><h2>Your evaluations</h2>{!runsLoaded && !jobs.length && !runsError && <div className="eval-history-loading" role="status" aria-live="polite" aria-busy="true"><Penguin size={48} state="loading" /><p>Loading your evaluations…</p></div>}{runsError && <div role="alert"><p>{runsError}</p><button type="button" className="button-secondary" disabled={runsRefreshing} onClick={() => setRunsRetry(n => n + 1)}>{runsRefreshing ? 'Retrying…' : 'Retry loading evaluations'}</button></div>}{runsLoaded && !jobs.length && !runsError && <p>No evaluations yet. Submitted runs will appear here.</p>}{jobs.some(job => job.state === 'succeeded') && <section className="eval-success-section" aria-labelledby="successful-runs-title"><h3 id="successful-runs-title">Successful runs</h3><div className="eval-success-scroll"><table className="eval-success-table"><thead><tr><th scope="col">Run</th><th scope="col">Constitution</th><th scope="col">Models</th><th scope="col">Scenarios</th><th scope="col">Results</th></tr></thead><tbody>{jobs.filter(job => job.state === 'succeeded').map(job => <tr key={job.id}><th scope="row">{job.name}</th><td>{job.constitution}</td><td>{job.models_count}</td><td>{job.scenario_count}</td><td><div className="eval-success-actions"><a href={`/run/?slug=account/${job.id}`}>View results →</a><a href={`/transcript/?run=account/${job.id}`}>Transcripts</a></div></td></tr>)}</tbody></table></div></section>}{jobs.length > 0 && <h3>All runs</h3>}{jobs.map(job => { const open = openRuns[job.id] ?? isActive(job.state); const body = `run-body-${job.id}`; return <article className={`eval-job${open ? ' is-open' : ''}`} key={job.id}>
       {/* Active runs start open; finished ones stay collapsed until clicked */}
       <button type="button" className="eval-job-toggle" aria-expanded={open} aria-controls={body} onClick={() => setOpenRuns(o => ({ ...o, [job.id]: !open }))}><span className="eval-state" data-state={job.state}>{job.state === 'succeeded' ? 'Completed' : label(job.state)}</span><span className="eval-job-title"><strong>{job.name}</strong><small>{job.constitution} · {job.models_count} models · {job.scenario_count} scenarios · {job.visibility} · {job.engine === 'inspect' ? 'Inspect' : 'Native'}</small></span><span className="eval-job-chevron" aria-hidden="true" /></button>
       {job.state === 'succeeded' && <div className="eval-result-links"><a className="button-primary" href={`/run/?slug=account/${job.id}`}>View results →</a><a className="button-secondary" href={`/transcript/?run=account/${job.id}`}>Transcripts</a><span>Rankings and individual judgments</span></div>}
