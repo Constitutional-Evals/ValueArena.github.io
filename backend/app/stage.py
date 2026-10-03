@@ -9,7 +9,12 @@ from pathlib import Path
 # Inspect starts `vllm serve` at the model's full context window. A 27B model with a 256k window
 # cannot fit that KV cache on one GPU, so the server exits and every response fails. Use the
 # native engine's vLLM settings instead; per-model arguments still take precedence.
-VLLM_SERVER_ARGS = {'max_model_len': 8192, 'gpu_memory_utilization': 0.9, 'enforce_eager': True}
+# Inspect also waits for the server indefinitely by default, so a hung startup would hold the GPU
+# until the run's time limit; give it an hour (large downloads and FlashInfer JIT compiles fit).
+# vLLM's own logging (weight loading, compilation, throughput) shows startup progress; the
+# per-request access log would flood the run log.
+VLLM_SERVER_ARGS = {'max_model_len': 8192, 'gpu_memory_utilization': 0.9, 'enforce_eager': True,
+                    'timeout': 3600, 'configure_logging': True, 'disable_uvicorn_access_log': True}
 # The server's last lines, repeated in the failure summary.
 vllm_tail = deque(maxlen=12)
 
@@ -23,7 +28,16 @@ def show_vllm_output():
     import logging
     server = logging.getLogger('inspect_ai._util.local_server')
     class Handler(logging.StreamHandler):
+        waits = 0
         def emit(self, record):
+            message = record.getMessage()
+            # Inspect polls the server every second while it starts; keep one line in 30.
+            if message.startswith('Server check failed'):
+                self.waits += 1
+                if self.waits % 30: return
+                record = logging.makeLogRecord({**record.__dict__, 'msg': f'Still waiting for the vLLM server to start ({self.waits} s)', 'args': ()})
+            elif message.startswith('Server is ready'):
+                self.waits = 0
             vllm_tail.append(record.getMessage()); super().emit(record)
     handler = Handler(sys.stdout)
     handler.setFormatter(logging.Formatter('[vllm] %(message)s'))
