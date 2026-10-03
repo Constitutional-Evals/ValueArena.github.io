@@ -3,6 +3,7 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY app app
+COPY worker-env worker-env
 COPY catalog.json catalog.json
 RUN useradd --uid 10001 --create-home service
 USER service

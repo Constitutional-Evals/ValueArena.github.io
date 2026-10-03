@@ -1,13 +1,17 @@
+import functools
 import hashlib
 import hmac
+import io
 import json
+import tarfile
 import tempfile
 import time
+from pathlib import Path
 from uuid import UUID
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import ValidationError
 
 from .auth import SupabaseAuth, bearer, worker_token
@@ -36,6 +40,22 @@ def public_job(job):
                 'constitution': job['config'].get('constitution_name', 'Custom'),
                 'models_count': len(job['config']['models']),
                 'scenario_count': (job['config'].get('advanced_spec', {}).get('dataset', {}).get('count') or len(job['config']['scenarios']) or job['config'].get('scenario_count', 200))}
+
+
+@functools.cache
+def worker_code_bundle() -> bytes:
+    """app/ and the pinned worker environments, as app/bootstrap.py unpacks them on a pod."""
+    from .upstream import REVISION
+    backend = Path(__file__).resolve().parent.parent
+    buffer = io.BytesIO()
+    with tarfile.open(fileobj=buffer, mode='w:gz') as archive:
+        for path in sorted((backend/'app').rglob('*.py')):
+            archive.add(path, arcname=str(path.relative_to(backend)), recursive=False)
+        for name in ('gpu.txt', 'cpu.txt'):
+            archive.add(backend/'worker-env'/name, arcname='worker-env/'+name, recursive=False)
+        info = tarfile.TarInfo('worker-env/eigenbench-revision.txt'); data = (REVISION+'\n').encode(); info.size = len(data)
+        archive.addfile(info, io.BytesIO(data))
+    return buffer.getvalue()
 
 
 def create_app(config=None, store=None, auth=None, storage=None):
@@ -364,6 +384,12 @@ def create_app(config=None, store=None, auth=None, storage=None):
         return {'id': job['id'], 'config': job['config'],
                 'deadline_at': (job['started_at'] + job['config']['max_runtime_seconds']) if job['config'].get('max_runtime_seconds') is not None else None,
                 'max_artifact_bytes': cfg.max_artifact_bytes}
+
+    @app.get('/internal/jobs/{job_id}/worker-bundle')
+    def worker_bundle(job=Depends(worker)):
+        # Pip-install pods fetch the worker code from the API, so it matches the deployed version.
+        if job['state'] not in ACTIVE: raise HTTPException(409, 'Job is no longer active')
+        return Response(worker_code_bundle(), media_type='application/gzip')
 
     @app.post('/internal/jobs/{job_id}/heartbeat')
     def heartbeat(update: WorkerUpdate, job=Depends(worker)):

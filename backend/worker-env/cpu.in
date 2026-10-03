@@ -1,0 +1,21 @@
+# API-only panels: EigenBench's requirements without vLLM, plus the worker's own.
+# Versions are held to the verified GPU set (gpu.in); torch is the CPU build.
+inspect-ai
+torch
+numpy
+scikit-learn
+matplotlib
+tqdm
+python-dotenv
+openai
+scipy
+pandas
+anthropic
+google-genai
+accelerate
+transformers
+datasets
+huggingface_hub
+gradio_client
+httpx
+pydantic-settings
