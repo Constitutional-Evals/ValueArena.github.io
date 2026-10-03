@@ -228,3 +228,45 @@ def test_reflection_budget_and_omission_policy_reach_spec():
     assert spec['collection']['failure_policy']=='omit_invalid_judgments'
     config['advanced_spec']['collection']['failure_policy']='strict'
     assert build_spec(config,'.')['collection']['failure_policy']=='strict'
+
+
+def test_models_too_large_for_the_gpu_are_refused_before_launch(service, monkeypatch):
+    _, db, client = service
+    monkeypatch.setattr(model_resolution, 'hf_snapshot', lambda *args, **kwargs: 'b'*40)
+    # Qwen/Qwen3.8-27B: 55.6 GB of bf16 safetensors.
+    monkeypatch.setitem(model_resolution.weight_bytes, ('Qwen/Qwen3.8-27B', 'b'*40, ''), 55_563_006_776)
+    model = {'id': 'big-qwen', 'provider': 'huggingface', 'repo_id': 'Qwen/Qwen3.8-27B', 'kind': 'base'}
+    result = submit(client, payload(models=['a', 'big-qwen'], custom_models=[model], engine='inspect'))
+    assert result.status_code == 422
+    assert 'big-qwen needs about 56 GB' in result.json()['detail'] and 'own provider keys' in result.json()['detail']
+    assert db.list() == []
+
+    refs = {'big-qwen': {'provider': 'hf_local', 'kind': 'base', 'repo_id': 'Qwen/Qwen3.8-27B', 'revision': 'b'*40}}
+    check = model_resolution.check_gpu_fit
+    check(refs, {'gpu_type': 'NVIDIA H100 80GB HBM3', 'engine': 'inspect'}, True)
+    # Native splits the model across GPUs; Inspect serves it on one.
+    check(refs, {'gpu_type': 'NVIDIA A40', 'gpu_count': 2, 'engine': 'native'}, True)
+    with pytest.raises(HTTPException, match='Choose an 80 GB GPU'):
+        check(refs, {'gpu_type': 'NVIDIA A40', 'gpu_count': 2, 'engine': 'inspect'}, True)
+    # A LoRA is sized by its base model; unknown sizes are not guessed.
+    lora = {'x': {'provider': 'hf_local', 'kind': 'lora', 'repo_id': 'me/adapter', 'revision': 'c'*40,
+                  'base_model_id': 'Qwen/Qwen3.8-27B', 'base_revision': 'b'*40}}
+    with pytest.raises(HTTPException, match='x needs about 56 GB'):
+        check(lora, {'gpu_type': 'NVIDIA A40', 'engine': 'native'}, True)
+    check({'y': refs['big-qwen'] | {'revision': 'd'*40}}, {'gpu_type': 'NVIDIA A40', 'engine': 'native'}, True)
+
+
+def test_hf_resolver_records_weight_size(monkeypatch):
+    import httpx
+    data = {'sha': 'e'*40, 'siblings': [{'rfilename': 'config.json', 'size': 900},
+                                        {'rfilename': 'model-1.safetensors', 'size': 3_000_000_000},
+                                        {'rfilename': 'model-2.safetensors', 'size': 2_000_000_000}]}
+    seen = {}
+    def get(url, **kwargs):
+        seen.update(kwargs.get('params') or {})
+        return httpx.Response(200, json=data, request=httpx.Request('GET', url))
+    monkeypatch.setattr(model_resolution.httpx, 'get', get)
+    monkeypatch.setattr(model_resolution, 'weight_bytes', {})
+    assert model_resolution.hf_snapshot('owner/model', 'main') == 'e'*40
+    assert seen['blobs'] == 'true'
+    assert model_resolution.weight_bytes == {('owner/model', 'e'*40, ''): 5_000_000_000}

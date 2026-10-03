@@ -12,5 +12,6 @@ RUN pip install --no-cache-dir -r requirements-worker.txt \
 RUN python -c "import torch, transformers, vllm; print('GPU stack:', torch.__version__, torch.version.cuda, transformers.__version__, vllm.__version__)"
 COPY app app
 ENV EIGENBENCH_ROOT=/opt/eigenbench PYTHONUNBUFFERED=1 HF_HOME=/workspace/hf MPLBACKEND=Agg
-RUN python -m app.upstream && python -m app.check_compiler && python -m app.check_cuda_compiler
+RUN python -m app.upstream && python -m app.check_compiler && python -m app.check_cuda_compiler \
+    && python -c "from inspect_ai.model._providers.vllm import VLLM_DEFAULT_SERVER_ARGS as v; assert v == 'VLLM_DEFAULT_SERVER_ARGS'"
 CMD ["python", "-m", "app.worker"]

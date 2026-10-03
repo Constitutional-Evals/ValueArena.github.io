@@ -9,6 +9,10 @@ import httpx
 from fastapi import HTTPException
 
 _or_cache = (0, [])
+# Safetensors bytes per pinned (repo, revision, subfolder), recorded while resolving revisions.
+weight_bytes = {}
+GPU_MEMORY_GB = {'NVIDIA A40': 48, 'NVIDIA RTX A6000': 48, 'NVIDIA GeForce RTX 4090': 24,
+                 'NVIDIA A100 80GB PCIe': 80, 'NVIDIA A100-SXM4-80GB': 80, 'NVIDIA H100 80GB HBM3': 80}
 
 
 def openrouter_models():
@@ -31,7 +35,7 @@ def hf_snapshot(repo, revision, subfolder='', adapter=False, token=''):
         raise HTTPException(422, 'Use a Hugging Face repository ID: owner/model')
     headers = {'Authorization': 'Bearer '+token} if token else {}
     try:
-        response = httpx.get(f'https://huggingface.co/api/models/{repo}/revision/{quote(revision, safe="")}', timeout=20, headers=headers)
+        response = httpx.get(f'https://huggingface.co/api/models/{repo}/revision/{quote(revision, safe="")}', params={'blobs': 'true'}, timeout=20, headers=headers)
         if response.status_code == 404: raise HTTPException(422, f'Model or revision not found: {repo}')
         if response.status_code in (401,403):
             raise HTTPException(422, f'Hugging Face denied access to {repo}. Check your token and model access approval.')
@@ -54,6 +58,10 @@ def hf_snapshot(repo, revision, subfolder='', adapter=False, token=''):
             if access.status_code in (401,403,404):
                 raise HTTPException(422, f'Hugging Face denied weight access to {repo}. Accept the model terms and use a token from the approved account.')
             access.raise_for_status()
+        sizes = [f.get('size') for f in data.get('siblings', []) if f['rfilename'].startswith(prefix) and f['rfilename'].endswith('.safetensors')]
+        if sizes and all(isinstance(size, int) for size in sizes):
+            if len(weight_bytes) > 1000: weight_bytes.clear()
+            weight_bytes[(repo, sha, subfolder)] = sum(sizes)
         return sha
     except httpx.HTTPError:
         raise HTTPException(503, f'Unable to verify Hugging Face repository: {repo}') from None
@@ -79,6 +87,28 @@ def validate_native_adapters(refs, token=''):
             raise HTTPException(422, f'Cannot verify LoRA rank for {nick}. Check the adapter configuration.') from None
         if rank > MAX_LORA_RANK:
             raise HTTPException(422, f'{nick} has LoRA rank {rank}; the pinned upstream native runner supports at most {MAX_LORA_RANK}. Use a compatible lower-rank adapter or a merged full model. No GPU has been started.')
+
+
+def check_gpu_fit(refs, config, adjustable):
+    """Refuse a local model whose weights alone exceed vLLM's share of the GPU memory.
+
+    vLLM claims 90% of each GPU and needs a few GB beyond the weights for activations and its
+    KV cache, so such a model exits at startup — after the pod has been paid for.
+    """
+    gpu = config.get('gpu_type', 'NVIDIA A40'); memory = GPU_MEMORY_GB.get(gpu)
+    if not memory: return
+    # Native splits each model across the GPUs (tensor parallel); Inspect serves it on one.
+    count = config.get('gpu_count', 1) if config.get('engine') == 'native' else 1
+    usable = 0.9 * memory * count
+    for nick, ref in refs.items():
+        if not agents.is_local(ref): continue
+        lora = ref.get('kind') == 'lora'
+        size = weight_bytes.get((ref.get('base_model_id'), ref.get('base_revision'), '') if lora else (ref.get('repo_id'), ref.get('revision'), ref.get('subfolder', '')))
+        if size is None or size / 1e9 + 2 <= usable: continue
+        where = f'{count} × {gpu}' if count > 1 else f'one {gpu}'
+        advice = ('Choose an 80 GB GPU (A100 80GB or H100)' if memory < 80 else 'Use Native with more GPUs') + ', or pick a smaller or quantized model.'
+        if not adjustable: advice = 'LAISR Lab compute uses this GPU. To choose an 80 GB GPU, use your own provider keys, or pick a smaller or quantized model.'
+        raise HTTPException(422, f'{nick} needs about {size / 1e9:.0f} GB of GPU memory for its weights alone; {where} gives vLLM about {usable:.0f} GB. {advice} No GPU has been started.')
 
 
 def resolve_models(request, catalog, token=''):
