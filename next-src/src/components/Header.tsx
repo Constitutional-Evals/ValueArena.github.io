@@ -104,7 +104,7 @@ export function Header() {
         {admin && <a href="/admin/" aria-current={pathname.startsWith('/admin') ? 'page' : undefined}>Admin</a>}
       </nav>
       <div className="va-header-actions">
-        <a className="va-account-link va-glass-pill" href="/evaluate/" aria-current={pathname.startsWith('/evaluate') ? 'page' : undefined}>{loggedIn ? 'Evaluate' : 'Log in'}</a>
+        <a className="va-account-link va-glass-pill" href="/evaluate/" aria-current={pathname.startsWith('/evaluate') ? 'page' : undefined}>Evaluate</a>
         <button
           type="button"
           onClick={toggle}
