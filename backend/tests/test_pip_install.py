@@ -144,3 +144,20 @@ def test_installed_environment_comes_first_on_path(tmp_path, monkeypatch):
     assert gpu['PATH'] == f"{tmp_path/'venv'/'bin'}:{cuda/'bin'}:/usr/bin" and gpu['CUDA_HOME'] == str(cuda)
     assert (cuda/'lib64').is_symlink()
     assert [c[-1] for c in commands if c[1] == '-m'] == ['app.check_compiler', 'app.check_cuda_compiler']
+
+
+def test_toolkit_layout_gives_the_cuda_wheels_toolkit_library_names(tmp_path, monkeypatch):
+    # FlashInfer links with -L$CUDA_HOME/lib64 -L$CUDA_HOME/lib64/stubs -lcudart -lcuda -lcublas ...;
+    # the wheels ship only versioned files, so its kernel builds failed: "cannot find -lcudart".
+    cuda = tmp_path/'cu13'; lib = cuda/'lib'; lib.mkdir(parents=True)
+    for name in ('libcudart.so.13', 'libcublas.so.13', 'libcublasLt.so.13', 'libnvrtc.so.13',
+                 'libnvrtc-builtins.so.13.0', 'libcudart_static.a'):
+        (lib/name).write_text('')
+    driver = tmp_path/'driver'; driver.mkdir(); (driver/'libcuda.so.1').write_text('')
+    monkeypatch.setattr(bootstrap, 'DRIVER_DIRS', (str(tmp_path/'missing'), str(driver)))
+    bootstrap.toolkit_layout(cuda); bootstrap.toolkit_layout(cuda)  # idempotent
+    assert (cuda/'lib64').resolve() == lib.resolve()
+    links = {p.name: p.readlink().name for p in lib.iterdir() if p.is_symlink()}
+    assert links == {'libcudart.so': 'libcudart.so.13', 'libcublas.so': 'libcublas.so.13', 'libcublasLt.so': 'libcublasLt.so.13',
+                     'libnvrtc.so': 'libnvrtc.so.13', 'libnvrtc-builtins.so': 'libnvrtc-builtins.so.13.0'}
+    assert (cuda/'lib64'/'stubs'/'libcuda.so').readlink() == driver/'libcuda.so.1'

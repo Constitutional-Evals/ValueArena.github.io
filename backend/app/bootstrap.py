@@ -99,6 +99,28 @@ def extract(data, target, strip=0):
             archive.extract(member, target)
 
 
+DRIVER_DIRS = ('/usr/lib/x86_64-linux-gnu', '/usr/lib64', '/usr/local/nvidia/lib64', '/usr/lib/wsl/lib')
+
+
+def toolkit_layout(cuda):
+    """Give the pip CUDA wheels the layout of a CUDA toolkit, as nvcc and FlashInfer expect.
+
+    nvcc and FlashInfer look in lib64 and lib64/stubs; the wheels install versioned libraries
+    (libcudart.so.13) in lib, without the libcudart.so links a toolkit has, so FlashInfer's
+    kernel builds failed with "cannot find -lcudart".
+    """
+    lib = cuda/'lib'
+    if not (cuda/'lib64').exists(): (cuda/'lib64').symlink_to('lib')
+    for library in sorted(lib.glob('lib*.so.*'), key=lambda path: len(path.name)):
+        plain = lib/(library.name.split('.so.')[0] + '.so')
+        if not plain.exists() and not plain.is_symlink(): plain.symlink_to(library.name)
+    # -lcuda resolves to the driver, which the host mounts into the container.
+    stub = lib/'stubs'/'libcuda.so'
+    driver = next((Path(d)/'libcuda.so.1' for d in DRIVER_DIRS if (Path(d)/'libcuda.so.1').exists()), None)
+    if driver and not stub.exists():
+        stub.parent.mkdir(exist_ok=True); stub.symlink_to(driver)
+
+
 def install(reporter, compute):
     started = time.monotonic()
     log(f'Installing the {compute.upper()} worker with pip (no container download).')
@@ -127,8 +149,7 @@ def install(reporter, compute):
     if compute == 'gpu':
         site = subprocess.check_output([str(python), '-c', 'import sysconfig; print(sysconfig.get_paths()["purelib"])'], text=True).strip()
         cuda = Path(site)/'nvidia'/'cu13'
-        # nvcc's profile looks for libraries in lib64; the wheels install them in lib.
-        if not (cuda/'lib64').exists(): (cuda/'lib64').symlink_to('lib')
+        toolkit_layout(cuda)
         runtime.update(CUDA_HOME=str(cuda), PATH=f"{venv/'bin'}:{cuda/'bin'}:{os.environ.get('PATH', '')}")
         checks = {**os.environ, **runtime}
         for check in ('app.check_compiler', 'app.check_cuda_compiler'):
