@@ -120,14 +120,16 @@ def install(reporter, compute):
     run([uv, 'pip', 'sync', '--python', python, '--require-hashes', *(CPU_INDEX if compute == 'cpu' else []), lock], env)
     log(f'Packages installed in {time.monotonic() - started:.0f} s.')
 
+    # The environment's executables come first: Inspect starts `vllm serve` from PATH.
     runtime = {'EIGENBENCH_ROOT': str(ROOT/'eigenbench'), 'PYTHONUNBUFFERED': '1',
-               'HF_HOME': '/workspace/hf', 'MPLBACKEND': 'Agg'}
+               'HF_HOME': '/workspace/hf', 'MPLBACKEND': 'Agg', 'VIRTUAL_ENV': str(venv),
+               'PATH': f"{venv/'bin'}:{os.environ.get('PATH', '')}"}
     if compute == 'gpu':
         site = subprocess.check_output([str(python), '-c', 'import sysconfig; print(sysconfig.get_paths()["purelib"])'], text=True).strip()
         cuda = Path(site)/'nvidia'/'cu13'
         # nvcc's profile looks for libraries in lib64; the wheels install them in lib.
         if not (cuda/'lib64').exists(): (cuda/'lib64').symlink_to('lib')
-        runtime.update(CUDA_HOME=str(cuda), PATH=f"{cuda/'bin'}:{os.environ.get('PATH', '')}")
+        runtime.update(CUDA_HOME=str(cuda), PATH=f"{venv/'bin'}:{cuda/'bin'}:{os.environ.get('PATH', '')}")
         checks = {**os.environ, **runtime}
         for check in ('app.check_compiler', 'app.check_cuda_compiler'):
             run([python, '-m', check], {**checks, 'PYTHONPATH': str(worker)})

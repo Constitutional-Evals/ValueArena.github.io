@@ -111,3 +111,36 @@ def test_bootstrap_extract_ignores_links_and_paths_outside_the_target(tmp_path):
     bootstrap.extract(buffer.getvalue(), tmp_path/'out', strip=1)
     assert (tmp_path/'out'/'ok.txt').read_text() == 'x'
     assert not (tmp_path/'escape.txt').exists() and not (tmp_path/'out'/'link').exists()
+
+
+def test_installed_environment_comes_first_on_path(tmp_path, monkeypatch):
+    # Inspect starts `vllm serve` by name, so the venv's bin must be on PATH (it was not, and
+    # every local model failed with "No such file or directory: 'vllm'").
+    import hashlib
+    uv = b'uv archive'
+    monkeypatch.setattr(bootstrap, 'ROOT', tmp_path)
+    monkeypatch.setattr(bootstrap, 'LOG', tmp_path/'install.log')
+    monkeypatch.setattr(bootstrap, 'UV_SHA256', hashlib.sha256(uv).hexdigest())
+    monkeypatch.setattr(bootstrap, 'download', lambda url, **kwargs: uv)
+    def extract(data, target, strip=0):
+        if target.name == 'worker':
+            (target/'worker-env').mkdir(parents=True, exist_ok=True); (target/'worker-env'/'eigenbench-revision.txt').write_text(REVISION)
+        if target.name == 'uv':
+            target.mkdir(parents=True, exist_ok=True); (target/'uv').write_text('')
+    commands = []
+    monkeypatch.setattr(bootstrap, 'extract', extract)
+    monkeypatch.setattr(bootstrap, 'run', lambda command, env=None: commands.append([str(c) for c in command]))
+    monkeypatch.setattr(bootstrap.subprocess, 'check_output', lambda *a, **k: str(tmp_path/'site')+'\n')
+    (tmp_path/'site'/'nvidia'/'cu13'/'lib').mkdir(parents=True)
+    monkeypatch.setenv('PATH', '/usr/bin')
+    reporter = type('R', (), {'request': lambda self, path, timeout=60: b''})()
+
+    _, _, cpu = bootstrap.install(reporter, 'cpu')
+    assert cpu['PATH'] == f"{tmp_path/'venv'/'bin'}:/usr/bin" and cpu['VIRTUAL_ENV'] == str(tmp_path/'venv')
+    assert 'CUDA_HOME' not in cpu
+
+    _, _, gpu = bootstrap.install(reporter, 'gpu')
+    cuda = tmp_path/'site'/'nvidia'/'cu13'
+    assert gpu['PATH'] == f"{tmp_path/'venv'/'bin'}:{cuda/'bin'}:/usr/bin" and gpu['CUDA_HOME'] == str(cuda)
+    assert (cuda/'lib64').is_symlink()
+    assert [c[-1] for c in commands if c[1] == '-m'] == ['app.check_compiler', 'app.check_cuda_compiler']
