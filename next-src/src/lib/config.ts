@@ -70,6 +70,9 @@ const MODEL_LOGOS: Record<string, string> = {
   zai: 'assets/models/zai.png',
   glm: 'assets/models/zai.png',
   zhipu: 'assets/models/zai.png',
+  // LAISR Lab's own agents
+  nycc: 'assets/art/nycc-agent-mark.webp',
+  laisr: 'assets/art/laisr-pixel-mark.webp',
 };
 
 const QWEN_NICK_PATTERNS = [
