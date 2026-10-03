@@ -20,7 +20,7 @@ export function AdvancedConfiguration({ value, onChange, configVersion, getReque
   useEffect(() => {
     if (!open || defaults) return;
     let live = true;
-    void request('/spec-options').then(r => r.json()).then(data => { if (live) setDefaults(data.defaults); }).catch(e => { if (live) setError(e.message); });
+    void request('/spec-options', {}, true).then(r => r.json()).then(data => { if (live) setDefaults(data.defaults); }).catch(e => { if (live) setError(e.message); });
     return () => { live = false; };
   }, [open, defaults]);
   let syntaxError = '';

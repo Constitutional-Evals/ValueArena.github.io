@@ -1121,3 +1121,56 @@ body:has(.arena-home) .page-hills {
   align-items: center;
   gap: 12px;
 }
+
+/* Log in from the Evaluate form: visitors fill it in first, then log in to submit */
+.eval-login-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  overflow-y: auto;
+  background: color-mix(in srgb, var(--bg) 55%, transparent);
+  backdrop-filter: blur(6px);
+}
+.eval-login-dialog {
+  position: relative;
+  width: min(460px, 100%);
+}
+.va-main .eval-login-dialog .evaluation-login {
+  margin: 0;
+  max-width: none;
+  background: var(--bg-elevated);
+  box-shadow: 0 18px 60px rgba(31, 40, 31, 0.18);
+}
+.eval-login-reason {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0 0 10px;
+  padding: 10px 8px 10px 14px;
+  border-radius: 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+}
+.eval-login-reason p {
+  flex: 1;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.va-main .eval-login-close {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--text-muted);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+.va-main .eval-login-close:hover { color: var(--text); }
