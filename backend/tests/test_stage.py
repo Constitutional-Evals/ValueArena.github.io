@@ -1,4 +1,5 @@
 import json
+import logging
 import sys
 import types
 from types import SimpleNamespace as NS
@@ -22,6 +23,8 @@ def upstream(monkeypatch, tmp_path):
     seen = {}
     def collect(spec):
         seen['vllm'] = json.loads(stage.os.environ['VLLM_DEFAULT_SERVER_ARGS'])
+        # Inspect logs the server's stderr here, below its default level.
+        logging.getLogger('inspect_ai._util.local_server').info('ValueError: architecture not supported')
         raise KeyError('Qwen-Qwen3-8-27B')
     logs = {'a': log('eigenbench_responses_Qwen-Qwen3-8-27B', 'Qwen-Qwen3-8-27B',
                      [sample('RuntimeError: vLLM server process exited\nKV cache too small')] * 5),
@@ -37,6 +40,9 @@ def upstream(monkeypatch, tmp_path):
     }
     for name, module in modules.items(): monkeypatch.setitem(sys.modules, name, module)
     monkeypatch.delenv('VLLM_DEFAULT_SERVER_ARGS', raising=False)
+    stage.vllm_tail.clear()
+    server = logging.getLogger('inspect_ai._util.local_server')
+    monkeypatch.setattr(server, 'handlers', []); monkeypatch.setattr(server, 'propagate', True)
     return seen, tmp_path
 
 
@@ -52,6 +58,7 @@ def test_inspect_collection_caps_vllm_context_and_names_the_failed_model(upstrea
     assert err.index("KeyError: 'Qwen-Qwen3-8-27B'") < err.index('Response collection failed for:')
     assert 'Qwen-Qwen3-8-27B: 5 of 5 responses failed. First error: RuntimeError: vLLM server process exited KV cache too small' in err
     assert 'gemini' not in err.split('Response collection failed for:')[1]
+    assert err.rstrip().endswith('Last vLLM server output:\n  ValueError: architecture not supported')
 
 
 def test_explicit_vllm_server_args_are_kept(upstream, monkeypatch):

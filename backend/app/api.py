@@ -16,7 +16,7 @@ from . import agents
 from .config import settings
 from .db import ACTIVE, TERMINAL, Conflict, Forbidden, Store
 from .models import EvaluationRequest, WorkerFinish, WorkerUpdate, VisibilityUpdate
-from .model_resolution import resolve_models, openrouter_models, verify_provider_keys
+from .model_resolution import check_gpu_fit, resolve_models, openrouter_models, verify_provider_keys
 from .advanced import AdvancedSpec, merge_options
 from .governance import PolicyUpdate, MemberUpdate, CreditGrant, Policy, Limits, enforce
 from .spec import build_spec
@@ -232,6 +232,8 @@ def create_app(config=None, store=None, auth=None, storage=None):
         if incoming.funding == 'service' and db.member(user_id)['role']!='admin' and (incoming.gpu_type != cfg.runpod_gpu_type or incoming.disk_gb != cfg.runpod_disk_gb or incoming.gpu_count != 1 or incoming.cpu_count != 4 or incoming.cpu_flavor != 'cpu3g' or incoming.volume_gb != 0):
             raise HTTPException(422, 'Custom compute requires your own provider keys')
         select_compute(config,refs,user_id)
+        if config['compute_type'] == 'gpu':
+            check_gpu_fit(refs, config, incoming.funding == 'own_keys' or db.member(user_id)['role'] == 'admin')
         digest = hashlib.sha256(json.dumps(config, sort_keys=True).encode()).hexdigest()
         # Snapshot the catalog: queued jobs do not silently change if administrators update it.
         config['model_refs'] = refs

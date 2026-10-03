@@ -3,12 +3,31 @@ import json
 import os
 import sys
 import traceback
+from collections import deque
 from pathlib import Path
 
 # Inspect starts `vllm serve` at the model's full context window. A 27B model with a 256k window
 # cannot fit that KV cache on one GPU, so the server exits and every response fails. Use the
 # native engine's vLLM settings instead; per-model arguments still take precedence.
 VLLM_SERVER_ARGS = {'max_model_len': 8192, 'gpu_memory_utilization': 0.9, 'enforce_eager': True}
+# The server's last lines, repeated in the failure summary.
+vllm_tail = deque(maxlen=12)
+
+
+def show_vllm_output():
+    """Copy the `vllm serve` output Inspect captures into the run log.
+
+    Inspect logs the server's stdout at debug and stderr at info, below its default level, so a
+    server that exits at startup leaves only "exited unexpectedly with code 1" behind.
+    """
+    import logging
+    server = logging.getLogger('inspect_ai._util.local_server')
+    class Handler(logging.StreamHandler):
+        def emit(self, record):
+            vllm_tail.append(record.getMessage()); super().emit(record)
+    handler = Handler(sys.stdout)
+    handler.setFormatter(logging.Formatter('[vllm] %(message)s'))
+    server.addHandler(handler); server.setLevel(logging.DEBUG); server.propagate = False
 
 
 def response_failures(log_dir: Path) -> list[str]:
@@ -32,6 +51,7 @@ def collect_inspect(spec):
     from inspect_pipeline.collect import collect_direct_ratings_inspect
     from pipeline.config import load_run_spec
     os.environ.setdefault('VLLM_DEFAULT_SERVER_ARGS', json.dumps(VLLM_SERVER_ARGS))
+    show_vllm_output()
     try:
         collect_direct_ratings_inspect(spec)
     except Exception:
@@ -49,6 +69,7 @@ def collect_inspect(spec):
         if failures:
             # Printed last so the run's log tail ends with the cause rather than the traceback.
             print('\nResponse collection failed for:', *failures, sep='\n  ', file=sys.stderr, flush=True)
+            if vllm_tail: print('Last vLLM server output:', *vllm_tail, sep='\n  ', file=sys.stderr, flush=True)
         raise SystemExit(1)
 
 
