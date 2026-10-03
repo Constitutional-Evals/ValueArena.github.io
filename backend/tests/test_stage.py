@@ -1,6 +1,9 @@
+import asyncio
 import json
 import logging
+import subprocess
 import sys
+import time
 import types
 from types import SimpleNamespace as NS
 
@@ -14,7 +17,8 @@ def sample(error=None):
 
 
 def log(task, nick, samples):
-    return NS(eval=NS(task=task, task_args={'model_nick': nick}), samples=samples)
+    key = 'judge_nick' if task.startswith('eigenbench_judge') else 'model_nick'
+    return NS(eval=NS(task=task, task_args={key: nick}), samples=samples)
 
 
 @pytest.fixture
@@ -31,10 +35,19 @@ def upstream(monkeypatch, tmp_path):
     logs = {'a': log('eigenbench_responses_Qwen-Qwen3-8-27B', 'Qwen-Qwen3-8-27B',
                      [sample('RuntimeError: vLLM server process exited\nKV cache too small')] * 5),
             'b': log('eigenbench_responses_gemini', 'gemini', [sample()] * 5),
-            'c': log('eigenbench_judge_gemini', 'gemini', [sample('ignored')])}
+            'c': log('eigenbench_judge_gemini', 'gemini', [sample('Cannot send a request, as the client has been closed.')]),
+            'd': log('eigenbench_judge_grok', 'grok', [sample()])}
+    closed = seen.setdefault('closed', [])
+    async def close_model(nick, resolve_model): closed.append(nick)
+    class VLLMAPI: pass
     modules = {
         'inspect_pipeline': types.ModuleType('inspect_pipeline'),
-        'inspect_pipeline.collect': NS(collect_direct_ratings_inspect=collect),
+        'inspect_pipeline.collect': NS(collect_direct_ratings_inspect=collect, _close_model=close_model),
+        'inspect_ai._util': types.ModuleType('inspect_ai._util'),
+        'inspect_ai._util.local_server': NS(kill_process_tree=None),
+        'inspect_ai.model': types.ModuleType('inspect_ai.model'),
+        'inspect_ai.model._providers': types.ModuleType('inspect_ai.model._providers'),
+        'inspect_ai.model._providers.vllm': NS(VLLMAPI=VLLMAPI),
         'pipeline': types.ModuleType('pipeline'),
         'pipeline.config': NS(load_run_spec=lambda spec: ({'collection': {'evaluations_path': str(tmp_path/'evaluations.jsonl')}}, tmp_path)),
         'inspect_ai': types.ModuleType('inspect_ai'),
@@ -57,9 +70,11 @@ def test_inspect_collection_caps_vllm_context_and_names_the_failed_model(upstrea
     assert seen['log_dir'] == str(tmp_path/'inspect_logs')
     err = capsys.readouterr().err
     # The cause comes after the traceback, so it is the last thing in the run log.
-    assert err.index("KeyError: 'Qwen-Qwen3-8-27B'") < err.index('Response collection failed for:')
-    assert 'Qwen-Qwen3-8-27B: 5 of 5 responses failed. First error: RuntimeError: vLLM server process exited KV cache too small' in err
-    assert 'gemini' not in err.split('Response collection failed for:')[1]
+    assert err.index("KeyError: 'Qwen-Qwen3-8-27B'") < err.index('Collection failed for:')
+    summary = err.split('Collection failed for:')[1]
+    assert 'Qwen-Qwen3-8-27B: 5 of 5 responses failed. First error: RuntimeError: vLLM server process exited KV cache too small' in summary
+    assert 'gemini: 1 of 1 judgments failed. First error: Cannot send a request, as the client has been closed.' in summary
+    assert 'grok' not in summary and 'gemini: ' + '5' not in summary
     assert err.rstrip().endswith('Last vLLM server output:\n  Still waiting for the vLLM server to start (30 s)\n'
                                  '  Still waiting for the vLLM server to start (60 s)\n  ValueError: architecture not supported')
     assert seen['vllm']['timeout'] == 3600 and seen['vllm']['disable_uvicorn_access_log'] is True
@@ -71,3 +86,28 @@ def test_explicit_vllm_server_args_are_kept(upstream, monkeypatch):
     with pytest.raises(SystemExit):
         stage.collect_inspect('spec.py')
     assert seen['vllm'] == {'max_model_len': 32768}
+
+
+def test_runtime_patches_stop_vllm_without_pkill_and_keep_api_clients_open(upstream):
+    seen, _ = upstream
+    with pytest.raises(SystemExit):
+        stage.collect_inspect('spec.py')
+    assert sys.modules['inspect_ai._util.local_server'].kill_process_tree is stage.kill_process_tree
+    collect = sys.modules['inspect_pipeline.collect']
+    local = NS(api=sys.modules['inspect_ai.model._providers.vllm'].VLLMAPI())
+    hosted = NS(api=object())
+    resolve = {'qwen': local, 'nycc-agent': hosted}.__getitem__
+    for nick in ('qwen', 'nycc-agent'): asyncio.run(collect._close_model(nick, resolve))
+    assert seen['closed'] == ['qwen']
+
+
+def test_kill_process_tree_stops_children():
+    psutil = pytest.importorskip('psutil')
+    # A server with an engine child, as `vllm serve` has.
+    server = subprocess.Popen(['sh', '-c', 'sleep 300 & wait'])
+    deadline = time.time() + 5
+    while not psutil.Process(server.pid).children() and time.time() < deadline: time.sleep(0.05)
+    child = psutil.Process(server.pid).children()[0]
+    stage.kill_process_tree(server.pid)
+    server.wait(timeout=5)
+    assert not child.is_running() or child.status() == psutil.STATUS_ZOMBIE

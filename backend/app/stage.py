@@ -44,20 +44,61 @@ def show_vllm_output():
     server.addHandler(handler); server.setLevel(logging.DEBUG); server.propagate = False
 
 
-def response_failures(log_dir: Path) -> list[str]:
-    """One line per model whose Inspect response samples failed, with the first error."""
+def kill_process_tree(pid):
+    """Stop a vLLM server and its engine processes with psutil.
+
+    Inspect's version shells out to pkill and kill, which the slim worker image lacks. It then
+    stopped nothing: the response phase's server kept 72 GB of the GPU and the judge phase's
+    server could not start ("Free memory on device ... is less than desired").
+    """
+    import psutil
+    try: parent = psutil.Process(pid)
+    except psutil.NoSuchProcess: return
+    processes = parent.children(recursive=True) + [parent]
+    for process in processes:
+        try: process.terminate()
+        except psutil.NoSuchProcess: pass
+    _, alive = psutil.wait_procs(processes, timeout=30)
+    for process in alive:
+        try: process.kill()
+        except psutil.NoSuchProcess: pass
+    psutil.wait_procs(alive, timeout=10)
+
+
+def patch_runtime():
+    """Fixes to the pinned Inspect and EigenBench applied in the collection process."""
+    from inspect_ai._util import local_server
+    import inspect_pipeline.collect as collect
+    local_server.kill_process_tree = kill_process_tree
+    # The phased runner closes each model after its phase to free the GPU, but that also closes
+    # API models' HTTP clients, and the same model objects judge later: "Cannot send a request,
+    # as the client has been closed". Only local vLLM servers need closing.
+    close = collect._close_model
+    async def close_local_models(nick, resolve_model):
+        from inspect_ai.model._providers.vllm import VLLMAPI
+        try: api = resolve_model(nick).api
+        except Exception: return
+        if isinstance(api, VLLMAPI): await close(nick, resolve_model)
+    collect._close_model = close_local_models
+
+
+def collection_failures(log_dir: Path) -> list[str]:
+    """One line per model whose Inspect responses or judgments failed, with the first error."""
     from inspect_ai.log import list_eval_logs, read_eval_log
     lines = []
     for info in list_eval_logs(str(log_dir)):
         log = read_eval_log(info)
-        if not log.eval.task.startswith('eigenbench_responses'): continue
-        model = log.eval.task_args.get('model_nick') or log.eval.task
+        task = log.eval.task
+        if task.startswith('eigenbench_responses'): work, nick = 'responses', 'model_nick'
+        elif task.startswith('eigenbench_judge'): work, nick = 'judgments', 'judge_nick'
+        else: continue
+        model = log.eval.task_args.get(nick) or task
         failed = [s for s in log.samples or [] if s.error]
         if failed:
             message = ' '.join(failed[0].error.message.strip().splitlines())
-            lines.append(f'{model}: {len(failed)} of {len(log.samples)} responses failed. First error: {message[:600]}')
+            lines.append(f'{model}: {len(failed)} of {len(log.samples)} {work} failed. First error: {message[:600]}')
         elif getattr(log, 'error', None):
-            lines.append(f'{model}: response task failed: {" ".join(log.error.message.strip().splitlines())[:600]}')
+            lines.append(f'{model}: {work} task failed: {" ".join(log.error.message.strip().splitlines())[:600]}')
     return lines
 
 
@@ -66,6 +107,7 @@ def collect_inspect(spec):
     from pipeline.config import load_run_spec
     os.environ.setdefault('VLLM_DEFAULT_SERVER_ARGS', json.dumps(VLLM_SERVER_ARGS))
     show_vllm_output()
+    patch_runtime()
     try:
         collect_direct_ratings_inspect(spec)
     except Exception:
@@ -76,13 +118,13 @@ def collect_inspect(spec):
             collection = loaded.get('collection', {})
             log_dir = Path((collection.get('inspect') or {}).get('log_dir') or 'inspect_logs')
             if not log_dir.is_absolute(): log_dir = Path(collection['evaluations_path']).parent/log_dir
-            failures = response_failures(log_dir)
+            failures = collection_failures(log_dir)
         except Exception as e:
             failures = [f'(could not read Inspect logs: {e})']
         traceback.print_exc()
         if failures:
             # Printed last so the run's log tail ends with the cause rather than the traceback.
-            print('\nResponse collection failed for:', *failures, sep='\n  ', file=sys.stderr, flush=True)
+            print('\nCollection failed for:', *failures, sep='\n  ', file=sys.stderr, flush=True)
             if vllm_tail: print('Last vLLM server output:', *vllm_tail, sep='\n  ', file=sys.stderr, flush=True)
         raise SystemExit(1)
 
